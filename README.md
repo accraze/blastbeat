@@ -61,6 +61,8 @@ Bundles land in `target/bundled/`.
 
 ## Install (Linux)
 
+Grab `blastbeat-<version>-linux.zip` from [Releases](https://github.com/accraze/blastbeat/releases) and unzip it, or build it yourself. Then:
+
 ```sh
 cp target/bundled/Blastbeat.clap ~/.clap/
 cp -r target/bundled/Blastbeat.vst3 ~/.vst3/   # optional
