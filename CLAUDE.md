@@ -22,6 +22,7 @@ cargo clippy --release --lib
 
 - `pattern.rs`: `step_hits(bar, step, pattern)` gives each voice's velocity. All randomness goes through
   `random(seed, bar, step, voice, stream)`; give new features a new stream so existing patterns don't reshuffle.
+  `section_at(bar, pattern)` draws each block's section independently; a Markov chain would need replaying from bar 0.
 - `feel.rs`: `offset_ms` and `velocity`, also pure. Drift is value noise rather than a stateful walk.
   `MAX_OFFSET_MS` must cover every offset, because the scheduler's lookahead depends on it.
 - `midi.rs`: `Scheduler` finds hits due in the block and emits sorted events. Its only state is sounding notes and
@@ -33,5 +34,5 @@ cargo clippy --release --lib
 
 ## Planned
 
-Keep these possible: sections, an amateur-mistakes layer, double bass, riff-follow, tempo ramps. They fit as layers
-around `step_hits`/`feel` selected by bar (sections, mistakes), new voices (double bass), a `MIDI_INPUT` (riff-follow).
+Keep these possible: an amateur-mistakes layer, double bass, riff-follow, tempo ramps. They fit as layers
+around `step_hits`/`feel` selected by bar (mistakes), new voices (double bass), a `MIDI_INPUT` (riff-follow).

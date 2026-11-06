@@ -80,6 +80,10 @@ impl Plugin for Blastbeat {
             cymbal: p.cymbal.value(),
             crash_every: p.crash_every.value() as i64,
             intensity: p.intensity.value(),
+            section_bars: p.section_bars.value() as i64,
+            half_time: p.half_time.value(),
+            breakdown: p.breakdown.value(),
+            fill: p.fill.value(),
         };
         let human = p.human.value();
         let feel = Feel {

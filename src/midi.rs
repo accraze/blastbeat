@@ -217,6 +217,10 @@ mod tests {
             cymbal: Cymbal::Ride,
             crash_every: 4,
             intensity: 0.8,
+            section_bars: 4,
+            half_time: 0.0,
+            breakdown: 0.0,
+            fill: 0.0,
         }
     }
 
@@ -315,14 +319,22 @@ mod tests {
     fn starting_mid_bar_matches_playing_through() {
         let from = ONE_BAR * 5 + ONE_BAR / 2 + 123;
         let to = ONE_BAR * 9;
-        let whole = play(&mut Scheduler::default(), 0, to, 256, &pat(), &HUMAN);
-        let mid = play(&mut Scheduler::default(), from, to, 256, &pat(), &HUMAN);
-        // Past the first moments, where a hit pushed before the start plays right away instead
-        let settled = from + (MAX_OFFSET_MS * FS / 1000.0) as i64 + 1;
-        let tail = |x: &[(i64, u8, f32)]| -> Vec<_> {
-            x.iter().copied().filter(|e| e.0 >= settled).collect()
+        let sections = Pattern {
+            half_time: 0.3,
+            breakdown: 0.3,
+            fill: 0.5,
+            ..pat()
         };
-        assert_same(&tail(&whole), &tail(&mid));
+        for p in [pat(), sections] {
+            let whole = play(&mut Scheduler::default(), 0, to, 256, &p, &HUMAN);
+            let mid = play(&mut Scheduler::default(), from, to, 256, &p, &HUMAN);
+            // Past the first moments, where a hit pushed before the start plays right away instead
+            let settled = from + (MAX_OFFSET_MS * FS / 1000.0) as i64 + 1;
+            let tail = |x: &[(i64, u8, f32)]| -> Vec<_> {
+                x.iter().copied().filter(|e| e.0 >= settled).collect()
+            };
+            assert_same(&tail(&whole), &tail(&mid));
+        }
     }
 
     #[test]

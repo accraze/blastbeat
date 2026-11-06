@@ -59,6 +59,15 @@ pub struct BlastbeatParams {
     #[id = "crash"]
     pub crash_every: IntParam,
 
+    #[id = "sectionbars"]
+    pub section_bars: IntParam,
+    #[id = "halftime"]
+    pub half_time: FloatParam,
+    #[id = "breakdown"]
+    pub breakdown: FloatParam,
+    #[id = "fill"]
+    pub fill: FloatParam,
+
     #[id = "human"]
     pub human: FloatParam,
     #[id = "jitter"]
@@ -125,6 +134,11 @@ impl Default for BlastbeatParams {
                         s.trim().trim_end_matches("bars").trim().parse().ok()
                     }
                 })),
+            section_bars: IntParam::new("Section Bars", 4, IntRange::Linear { min: 1, max: 32 }),
+            // All zero, so projects saved before sections existed keep playing the same
+            half_time: knob("Half-Time", 0.0),
+            breakdown: knob("Breakdown", 0.0),
+            fill: knob("Fill", 0.0),
             human: knob("Human", 0.5),
             jitter: knob("Jitter", 0.5),
             drift: knob("Drift", 0.3),

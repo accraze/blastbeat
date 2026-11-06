@@ -18,6 +18,10 @@ looping, scrubbing and starting mid-song all produce the same hits.
 | Division    | `division`  | 1/8, 1/16, 1/16T, 1/32      | 1/16        | Step size. The grid restarts on each bar line |
 | Cymbal      | `cymbal`    | Hat, Ride, China            | Ride        | Plays on every step, accented on beat 1 |
 | Crash Every | `crash`     | Off, 1–16 bars              | 4           | Crash on the first step of every Nth bar |
+| Section Bars | `sectionbars` | 1–32                     | 4           | Length of each section block |
+| Half-Time   | `halftime`  | 0–100%                      | 0%          | Chance a block is half-time |
+| Breakdown   | `breakdown` | 0–100%                      | 0%          | Chance a block is a breakdown |
+| Fill        | `fill`      | 0–100%                      | 0%          | Chance a block's last bar is a fill |
 | Human       | `human`     | 0–100%                      | 50%         | Machine-to-human macro: scales Jitter and Drift. 0% is dead on the grid |
 | Jitter      | `jitter`    | 0–100%                      | 50%         | Independent per-limb randomness, up to ±15 ms and ±0.2 velocity |
 | Drift       | `drift`     | 0–100%                      | 30%         | Timing wobble shared by all limbs, up to ±30 ms: the tape-warped drum machine |
@@ -27,6 +31,21 @@ looping, scrubbing and starting mid-song all produce the same hits.
 
 The Reroll button in the plugin window picks a new Seed. All params can be automated, and any of
 them, such as Intensity, can be mapped to a MIDI CC with the host's controller mapping.
+
+## Sections
+
+The song is divided into blocks of Section Bars bars, counted from bar 0. Each block draws its section
+from the seed, so a given position always gets the same section. It doesn't depend on the block before it.
+
+| Section   | Chance                             | Kick                                | Snare           | Cymbal       |
+|-----------|------------------------------------|-------------------------------------|-----------------|--------------|
+| Blast     | Whatever Half-Time and Breakdown leave | As set by Blast                 | As set by Blast | Every step   |
+| Half-Time | Half-Time                          | Beat 1 of every 4 quarter notes     | Beat 3 of every 4 | Every eighth |
+| Breakdown | Breakdown                          | Random eighths, repeating through the block | Beat 3 of every 4 | Every quarter |
+| Fill      | Fill, on the block's last bar only | About 1 step in 4                   | The other steps | First step only |
+
+If Half-Time and Breakdown add up past 100%, they share it in proportion and no block is a plain blast.
+With all three at 0%, the default, every block is a blast. Intensity thins every section, and Crash Every still applies.
 
 ## Drum map
 
