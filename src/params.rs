@@ -110,12 +110,19 @@ impl Default for BlastbeatParams {
             division: EnumParam::new("Division", Division::Sixteenth),
             cymbal: EnumParam::new("Cymbal", Cymbal::Ride),
             crash_every: IntParam::new("Crash Every", 4, IntRange::Linear { min: 0, max: 16 })
-                .with_unit(" bars")
+                // The unit is part of these strings because "Off bars" wouldn't read or parse
                 .with_value_to_string(Arc::new(|v| {
                     if v == 0 {
                         "Off".to_string()
                     } else {
-                        v.to_string()
+                        format!("{v} bars")
+                    }
+                }))
+                .with_string_to_value(Arc::new(|s| {
+                    if s.trim().eq_ignore_ascii_case("off") {
+                        Some(0)
+                    } else {
+                        s.trim().trim_end_matches("bars").trim().parse().ok()
                     }
                 })),
             human: knob("Human", 0.5),
@@ -149,5 +156,27 @@ impl Default for BlastbeatParams {
             note_china: note("China Note", 52),
             note_crash: note("Crash Note", 49),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn crash_every_text_round_trips() {
+        let p = BlastbeatParams::default();
+        let c = &p.crash_every;
+        for v in 0..=16 {
+            let n = c.preview_normalized(v);
+            let text = c.normalized_value_to_string(n, true);
+            assert_eq!(c.string_to_normalized_value(&text), Some(n), "{text}");
+        }
+        assert_eq!(c.normalized_value_to_string(0.0, true), "Off");
+        assert_eq!(
+            c.string_to_normalized_value("8"),
+            Some(c.preview_normalized(8))
+        );
+        assert_eq!(c.string_to_normalized_value("nope"), None);
     }
 }
