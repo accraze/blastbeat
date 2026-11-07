@@ -25,6 +25,7 @@ cargo clippy --release --lib
   `section_at(bar, pattern)` draws each block's section independently; a Markov chain would need replaying from bar 0.
 - `feel.rs`: `offset_ms` and `velocity`, also pure. Drift is value noise rather than a stateful walk.
   `MAX_OFFSET_MS` must cover every offset, because the scheduler's lookahead depends on it.
+- `mistakes.rs`: the amateur layer, also pure. `MAX_EARLY_MS` adds to the lookahead the same way `MAX_OFFSET_MS` does.
 - `midi.rs`: `Scheduler` finds hits due in the block and emits sorted events. Its only state is sounding notes and
   where the last block ended; it must never affect which hits exist.
 - `params.rs`: params and enums. `editor.rs`: generic param list plus Reroll. A plugin can only set its own params
@@ -34,5 +35,5 @@ cargo clippy --release --lib
 
 ## Planned
 
-Keep these possible: an amateur-mistakes layer, double bass, riff-follow, tempo ramps. They fit as layers
-around `step_hits`/`feel` selected by bar (mistakes), new voices (double bass), a `MIDI_INPUT` (riff-follow).
+Keep these possible: double bass, riff-follow, tempo ramps. They fit as new voices
+(double bass) and a `MIDI_INPUT` (riff-follow).

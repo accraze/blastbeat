@@ -1,6 +1,7 @@
 //! Timing and velocity humanization, also pure functions of position. Offsets are in milliseconds
 //! because that's how a drummer's looseness behaves, whatever the tempo.
 
+use crate::mistakes::Mistakes;
 use crate::pattern::{random, STREAM_DRIFT, STREAM_TIMING, STREAM_VELOCITY};
 
 const JITTER_MS: f64 = 15.0;
@@ -18,6 +19,7 @@ pub struct Feel {
     pub drift: f32,
     /// In cycles per bar
     pub drift_rate: f32,
+    pub mistakes: Mistakes,
 }
 
 fn bipolar(r: f64) -> f64 {
@@ -55,6 +57,7 @@ mod tests {
         jitter: 1.0,
         drift: 1.0,
         drift_rate: 1.0,
+        mistakes: Mistakes::NONE,
     };
 
     #[test]
@@ -63,6 +66,7 @@ mod tests {
             jitter: 0.0,
             drift: 0.0,
             drift_rate: 1.0,
+            mistakes: Mistakes::NONE,
         };
         assert_eq!(offset_ms(5, 3, 2, 1, 3.1, &machine), 0.0);
         assert_eq!(velocity(5, 3, 2, 1, 0.7, &machine), 0.7);

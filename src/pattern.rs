@@ -19,6 +19,12 @@ pub const STREAM_DRIFT: u64 = 3;
 const STREAM_SECTION: u64 = 4;
 const STREAM_FILL: u64 = 5;
 const STREAM_CHUG: u64 = 6;
+pub const STREAM_DROP: u64 = 7;
+pub const STREAM_FLAM: u64 = 8;
+pub const STREAM_FLAM_LEAD: u64 = 9;
+pub const STREAM_SPIKE: u64 = 10;
+pub const STREAM_WEAK_TIMING: u64 = 11;
+pub const STREAM_WEAK_VELOCITY: u64 = 12;
 
 const DRUM_VELOCITY: f32 = 0.9;
 const CYMBAL_VELOCITY: f32 = 0.7;
@@ -274,7 +280,7 @@ mod tests {
             breakdown: 0.2,
             ..pat()
         };
-        let mut counts = [0; 3];
+        let mut counts = [0i32; 3];
         for b in -500..500 {
             let first = section_at(b * 4, &p);
             for bar in 1..4 {
@@ -287,7 +293,7 @@ mod tests {
             }
         }
         for (count, expected) in counts.iter().zip([300, 200, 500]) {
-            assert!((count - expected as i32).abs() < 60, "{counts:?}");
+            assert!((count - expected).abs() < 60, "{counts:?}");
         }
         // Past 100% there's no blast left
         let over = Pattern {

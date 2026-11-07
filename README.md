@@ -26,6 +26,12 @@ looping, scrubbing and starting mid-song all produce the same hits.
 | Jitter      | `jitter`    | 0–100%                      | 50%         | Independent per-limb randomness, up to ±15 ms and ±0.2 velocity |
 | Drift       | `drift`     | 0–100%                      | 30%         | Timing wobble shared by all limbs, up to ±30 ms: the tape-warped drum machine |
 | Drift Rate  | `driftrate` | 0.1–8 per bar               | 0.5         | How fast Drift wanders |
+| Amateur     | `amateur`   | 0–100%                      | 0%          | Macro: scales the five mistakes below. 0% turns them all off |
+| Rush        | `rush`      | 0–100%                      | 50%         | Fills speed up through the bar, up to 40 ms early by the end |
+| Weak Foot   | `weakfoot`  | 0–100%                      | 50%         | The kick drags up to 12 ms, plays up to 40% quieter, and misses up to 25% of hits |
+| Drops       | `drops`     | 0–100%                      | 50%         | Any hit can go missing, up to 15% of them |
+| Flams       | `flams`     | 0–100%                      | 50%         | Up to 15% of kicks and snares get a half-velocity grace note 12–30 ms ahead |
+| Flat Velocity | `flatvel` | 0–100%                      | 50%         | Pulls every hit toward one level, with up to 6% spiking to full velocity |
 | Seed        | `seed`      | 0–99999                     | 1           | Selects the random pattern. Saved with the project and automatable |
 | Lock Seed   | `lock`      | On, Off                     | Off         | Disables the Reroll button. Seed can still be set by hand or automation |
 
@@ -46,6 +52,12 @@ from the seed, so a given position always gets the same section. It doesn't depe
 
 If Half-Time and Breakdown add up past 100%, they share it in proportion and no block is a plain blast.
 With all three at 0%, the default, every block is a blast. Intensity thins every section, and Crash Every still applies.
+
+## Mistakes
+
+Turn up Amateur to hear a drummer who's still learning. Each control is multiplied by Amateur, and the
+figures in the table are what it reaches with both at 100%. Mistakes come from the seed, so each one
+lands in the same place on every pass. Rush only affects fills, so it needs Fill above 0%.
 
 ## Drum map
 

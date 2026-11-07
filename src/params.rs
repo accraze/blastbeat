@@ -77,6 +77,19 @@ pub struct BlastbeatParams {
     #[id = "driftrate"]
     pub drift_rate: FloatParam,
 
+    #[id = "amateur"]
+    pub amateur: FloatParam,
+    #[id = "rush"]
+    pub rush: FloatParam,
+    #[id = "weakfoot"]
+    pub weak_foot: FloatParam,
+    #[id = "drops"]
+    pub drops: FloatParam,
+    #[id = "flams"]
+    pub flams: FloatParam,
+    #[id = "flatvel"]
+    pub flat: FloatParam,
+
     #[id = "seed"]
     pub seed: IntParam,
     #[id = "lock"]
@@ -153,6 +166,13 @@ impl Default for BlastbeatParams {
             )
             .with_unit(" /bar")
             .with_value_to_string(formatters::v2s_f32_rounded(2)),
+            // Zero, so projects saved before this layer existed keep playing the same
+            amateur: knob("Amateur", 0.0),
+            rush: knob("Rush", 0.5),
+            weak_foot: knob("Weak Foot", 0.5),
+            drops: knob("Drops", 0.5),
+            flams: knob("Flams", 0.5),
+            flat: knob("Flat Velocity", 0.5),
             seed: IntParam::new(
                 "Seed",
                 1,

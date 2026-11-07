@@ -2,6 +2,7 @@
 
 use feel::Feel;
 use midi::{Clock, Scheduler};
+use mistakes::Mistakes;
 use nih_plug::prelude::*;
 use params::BlastbeatParams;
 use pattern::Pattern;
@@ -10,6 +11,7 @@ use std::sync::Arc;
 mod editor;
 mod feel;
 mod midi;
+mod mistakes;
 mod params;
 mod pattern;
 
@@ -86,10 +88,18 @@ impl Plugin for Blastbeat {
             fill: p.fill.value(),
         };
         let human = p.human.value();
+        let amateur = p.amateur.value();
         let feel = Feel {
             jitter: p.jitter.value() * human,
             drift: p.drift.value() * human,
             drift_rate: p.drift_rate.value(),
+            mistakes: Mistakes {
+                rush: p.rush.value() * amateur,
+                weak_foot: p.weak_foot.value() * amateur,
+                drops: p.drops.value() * amateur,
+                flams: p.flams.value() * amateur,
+                flat: p.flat.value() * amateur,
+            },
         };
         // Same order as the voice indices in `pattern`
         let notes = [

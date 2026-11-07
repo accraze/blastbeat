@@ -6,7 +6,8 @@
 //! transport continuity; it never affects which hits exist.
 
 use crate::feel::{self, Feel, MAX_OFFSET_MS};
-use crate::pattern::{step_hits, Pattern, VOICES};
+use crate::mistakes;
+use crate::pattern::{section_at, step_hits, Pattern, Section, VOICES};
 use nih_plug::prelude::*;
 
 /// Length of each note. The Drum Machine plays one-shots, so this only has to be short and non-zero.
@@ -154,7 +155,7 @@ fn scan(
     feel: &Feel,
     mut f: impl FnMut(f64, usize, f32),
 ) {
-    let margin = MAX_OFFSET_MS * c.q_per_ms;
+    let margin = (MAX_OFFSET_MS + mistakes::MAX_EARLY_MS) * c.q_per_ms;
     let (lo, hi) = (start - margin, end + margin);
     let spq = p.division.steps_per_quarter();
     // Ignores float noise from an exact fit; an odd remainder gets one short last step
@@ -177,20 +178,27 @@ fn scan(
                 break;
             }
             let pos_bars = bar as f64 + beats / c.bar_len;
+            let fill_progress = (section_at(bar, p) == Section::Fill).then_some(beats / c.bar_len);
+            let m = &feel.mistakes;
             for (voice, &base) in step_hits(bar, step, p).iter().enumerate() {
-                if base == 0.0 {
+                if base == 0.0 || mistakes::dropped(p.seed, bar, step, voice, m) {
                     continue;
                 }
-                let offset = feel::offset_ms(p.seed, bar, step, voice, pos_bars, feel);
+                let offset = feel::offset_ms(p.seed, bar, step, voice, pos_bars, feel)
+                    + mistakes::offset_ms(p.seed, bar, step, voice, fill_progress, m);
                 let t = grid + offset * c.q_per_ms;
+                let velocity = feel::velocity(p.seed, bar, step, voice, base, feel);
+                let velocity = mistakes::velocity(p.seed, bar, step, voice, velocity, m);
                 // After a jump, a hit pushed from just ahead of the new position to before it would
                 // never play, so beat one could vanish on pressing play. Play it right away instead.
                 if (t >= start && t < end) || (jumped && grid >= start && t < start) {
-                    f(
-                        t,
-                        voice,
-                        feel::velocity(p.seed, bar, step, voice, base, feel),
-                    );
+                    f(t, voice, velocity);
+                }
+                if let Some((lead, grace)) = mistakes::flam(p.seed, bar, step, voice, velocity, m) {
+                    let t = t - lead * c.q_per_ms;
+                    if t >= start && t < end {
+                        f(t, voice, grace);
+                    }
                 }
             }
         }
@@ -201,6 +209,7 @@ fn scan(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mistakes::Mistakes;
     use crate::params::{Blast, Cymbal, Division};
 
     const FS: f64 = 48000.0;
@@ -228,7 +237,32 @@ mod tests {
         jitter: 1.0,
         drift: 1.0,
         drift_rate: 0.5,
+        mistakes: Mistakes::NONE,
     };
+    const SLOPPY: Feel = Feel {
+        mistakes: Mistakes {
+            rush: 1.0,
+            weak_foot: 1.0,
+            drops: 1.0,
+            flams: 1.0,
+            flat: 1.0,
+        },
+        ..HUMAN
+    };
+    const MACHINE: Feel = Feel {
+        jitter: 0.0,
+        drift: 0.0,
+        ..HUMAN
+    };
+
+    fn sections() -> Pattern {
+        Pattern {
+            half_time: 0.3,
+            breakdown: 0.3,
+            fill: 0.5,
+            ..pat()
+        }
+    }
 
     fn clock_at(sample: i64) -> Clock {
         let q_per_sample = BPM / 60.0 / FS;
@@ -291,27 +325,16 @@ mod tests {
 
     #[test]
     fn block_size_does_not_change_the_output() {
-        let a = play(
-            &mut Scheduler::default(),
-            0,
-            ONE_BAR * 8,
-            64,
-            &pat(),
-            &HUMAN,
-        );
-        for block in [128, 441, 1024, 4096] {
-            let b = play(
-                &mut Scheduler::default(),
-                0,
-                ONE_BAR * 8,
-                block,
-                &pat(),
-                &HUMAN,
-            );
-            // The bigger blocks run slightly past the end
-            let b: Vec<_> = b.into_iter().filter(|e| e.0 < ONE_BAR * 8).collect();
-            let a: Vec<_> = a.iter().copied().filter(|e| e.0 < ONE_BAR * 8).collect();
-            assert_same(&a, &b);
+        let end = ONE_BAR * 8;
+        for (p, f) in [(pat(), HUMAN), (sections(), SLOPPY)] {
+            let a = play(&mut Scheduler::default(), 0, end, 64, &p, &f);
+            for block in [128, 441, 1024, 4096] {
+                let b = play(&mut Scheduler::default(), 0, end, block, &p, &f);
+                // The bigger blocks run slightly past the end
+                let b: Vec<_> = b.into_iter().filter(|e| e.0 < end).collect();
+                let a: Vec<_> = a.iter().copied().filter(|e| e.0 < end).collect();
+                assert_same(&a, &b);
+            }
         }
     }
 
@@ -319,17 +342,12 @@ mod tests {
     fn starting_mid_bar_matches_playing_through() {
         let from = ONE_BAR * 5 + ONE_BAR / 2 + 123;
         let to = ONE_BAR * 9;
-        let sections = Pattern {
-            half_time: 0.3,
-            breakdown: 0.3,
-            fill: 0.5,
-            ..pat()
-        };
-        for p in [pat(), sections] {
-            let whole = play(&mut Scheduler::default(), 0, to, 256, &p, &HUMAN);
-            let mid = play(&mut Scheduler::default(), from, to, 256, &p, &HUMAN);
+        for (p, f) in [(pat(), HUMAN), (sections(), HUMAN), (sections(), SLOPPY)] {
+            let whole = play(&mut Scheduler::default(), 0, to, 256, &p, &f);
+            let mid = play(&mut Scheduler::default(), from, to, 256, &p, &f);
             // Past the first moments, where a hit pushed before the start plays right away instead
-            let settled = from + (MAX_OFFSET_MS * FS / 1000.0) as i64 + 1;
+            let max_ms = MAX_OFFSET_MS + mistakes::MAX_EARLY_MS;
+            let settled = from + (max_ms * FS / 1000.0) as i64 + 1;
             let tail = |x: &[(i64, u8, f32)]| -> Vec<_> {
                 x.iter().copied().filter(|e| e.0 >= settled).collect()
             };
@@ -374,12 +392,7 @@ mod tests {
         let settled = on.iter().filter(|e| e.0 < near_end).count();
         assert!((expected - 6..=expected).contains(&settled), "{settled}");
         // Machine feel has no pushes, so the count is exact
-        let machine = Feel {
-            jitter: 0.0,
-            drift: 0.0,
-            drift_rate: 0.5,
-        };
-        let on = play(&mut Scheduler::default(), 0, ONE_BAR * 4, 333, &p, &machine);
+        let on = play(&mut Scheduler::default(), 0, ONE_BAR * 4, 333, &p, &MACHINE);
         assert_eq!(on.iter().filter(|e| e.0 < ONE_BAR * 4).count(), expected);
     }
 
@@ -411,6 +424,59 @@ mod tests {
     }
 
     #[test]
+    fn flams_add_a_quiet_hit_ahead_of_the_main_one() {
+        let flams = Feel {
+            mistakes: Mistakes {
+                flams: 1.0,
+                ..Mistakes::NONE
+            },
+            ..MACHINE
+        };
+        let p = Pattern {
+            intensity: 1.0,
+            crash_every: 0,
+            ..pat()
+        };
+        let on = play(&mut Scheduler::default(), 0, ONE_BAR * 8, 256, &p, &flams);
+        let dead_on = play(&mut Scheduler::default(), 0, ONE_BAR * 8, 256, &p, &MACHINE);
+        assert!(on.len() > dead_on.len());
+        // Every main hit is still at its machine time, and each extra one is a quieter grace note
+        let is_main =
+            |e: &&(i64, u8, f32)| dead_on.iter().any(|h| h.1 == e.1 && (e.0 - h.0).abs() <= 1);
+        let graces: Vec<_> = on.iter().filter(|e| !is_main(e)).collect();
+        assert_eq!(graces.len(), on.len() - dead_on.len());
+        assert!(graces.iter().all(|e| e.2 < 0.5));
+    }
+
+    #[test]
+    fn rushed_fills_land_early_and_the_next_bar_snaps_back() {
+        let p = Pattern {
+            fill: 1.0,
+            intensity: 1.0,
+            crash_every: 0,
+            ..pat()
+        };
+        let rushed = Feel {
+            mistakes: Mistakes {
+                rush: 1.0,
+                ..Mistakes::NONE
+            },
+            ..MACHINE
+        };
+        let grid = play(&mut Scheduler::default(), 0, ONE_BAR * 5, 256, &p, &MACHINE);
+        let on = play(&mut Scheduler::default(), 0, ONE_BAR * 5, 256, &p, &rushed);
+        assert_eq!(grid.len(), on.len());
+        // Bar 3 is the fill. Past its halfway point every hit is over 20 ms early, about 960 samples
+        for (g, r) in grid.iter().zip(&on) {
+            if g.0 / ONE_BAR != 3 {
+                assert_eq!(r.0, g.0);
+            } else if g.0 > ONE_BAR * 3 + ONE_BAR / 2 {
+                assert!(r.0 < g.0 - 900, "{g:?} {r:?}");
+            }
+        }
+    }
+
+    #[test]
     fn crossing_bars_keeps_odd_meters_and_triplets_on_the_grid() {
         // 7/8 in triplet sixteenths has exactly 21 steps
         let p = Pattern {
@@ -419,11 +485,6 @@ mod tests {
             crash_every: 0,
             ..pat()
         };
-        let machine = Feel {
-            jitter: 0.0,
-            drift: 0.0,
-            drift_rate: 0.5,
-        };
         let c = Clock {
             bar_len: 3.5,
             bar: 0,
@@ -431,7 +492,7 @@ mod tests {
             ..clock_at(0)
         };
         let mut grid = vec![];
-        scan(&c, 0.0, 3.5, true, &p, &machine, |t, v, _| {
+        scan(&c, 0.0, 3.5, true, &p, &MACHINE, |t, v, _| {
             if v == crate::pattern::RIDE {
                 grid.push(t);
             }
