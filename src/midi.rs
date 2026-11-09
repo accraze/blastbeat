@@ -147,11 +147,17 @@ impl Scheduler {
         for h in hits.iter() {
             let (at, voice) = (h.sample as i64, h.voice as usize);
             self.note_offs_until(at + 1, &mut emit);
-            // Retriggering a voice that's still sounding
-            if let Some((note, _)) = self.sounding[voice].take() {
-                emit(note_off(at, note));
-            }
             let note = notes[voice];
+            // Retriggering a voice that's still sounding, or a note another voice shares, such as
+            // both kick feet on one pad
+            for (v, sounding) in self.sounding.iter_mut().enumerate() {
+                if let Some((n, _)) = *sounding {
+                    if v == voice || n == note {
+                        *sounding = None;
+                        emit(note_off(at, n));
+                    }
+                }
+            }
             emit(NoteEvent::NoteOn {
                 timing: at as u32,
                 voice_id: None,
@@ -255,11 +261,11 @@ fn scan(
 mod tests {
     use super::*;
     use crate::mistakes::Mistakes;
-    use crate::params::{Blast, Cymbal, Division};
+    use crate::params::{Blast, Cymbal, Division, Feet};
 
     const FS: f64 = 48000.0;
     const BPM: f64 = 180.0;
-    const NOTES: [u8; VOICES] = [36, 38, 42, 51, 52, 49];
+    const NOTES: [u8; VOICES] = [36, 38, 42, 51, 52, 49, 35];
     /// 4/4, in quarter notes
     const BAR: f64 = 4.0;
 
@@ -275,6 +281,8 @@ mod tests {
             half_time: 0.0,
             breakdown: 0.0,
             fill: 0.0,
+            double_bass: 0.0,
+            feet: Feet::Rolls,
             riff_follow: false,
         }
     }
@@ -454,6 +462,46 @@ mod tests {
             &MACHINE,
         );
         assert_eq!(on.iter().filter(|e| e.0 < ONE_BAR * 4).count(), expected);
+    }
+
+    #[test]
+    fn feet_sharing_a_note_never_overlap() {
+        // 1/32 at 300 BPM is 25 ms a step, inside the gate
+        let p = Pattern {
+            double_bass: 1.0,
+            division: Division::ThirtySecond,
+            intensity: 1.0,
+            ..pat()
+        };
+        let mut notes = NOTES;
+        notes[crate::pattern::KICK_LEFT] = notes[KICK];
+        let q_per_sample = 300.0 / 60.0 / FS;
+        let mut s = Scheduler::new(FS as f32);
+        let mut sounding = false;
+        let mut ons = 0;
+        // About two bars
+        for i in 0..200 {
+            let pos = (i * 512) as f64 * q_per_sample;
+            let bar = (pos / BAR).floor();
+            let clock = Clock {
+                pos,
+                q_per_sample,
+                q_per_ms: 300.0 / 60.0 / 1000.0,
+                bar: bar as i64,
+                bar_start: bar * BAR,
+                bar_len: BAR,
+            };
+            s.process(Some(clock), 512, &p, &MACHINE, &notes, |e| match e {
+                NoteEvent::NoteOn { note: 36, .. } => {
+                    assert!(!sounding, "kick retriggered without a note off");
+                    sounding = true;
+                    ons += 1;
+                }
+                NoteEvent::NoteOff { note: 36, .. } => sounding = false,
+                _ => {}
+            });
+        }
+        assert!(ons > 50);
     }
 
     #[test]

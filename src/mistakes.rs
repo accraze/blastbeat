@@ -2,7 +2,7 @@
 //! position, so a mistake happens in the same place on every pass.
 
 use crate::pattern::{
-    random, KICK, SNARE, STREAM_DROP, STREAM_FLAM, STREAM_FLAM_LEAD, STREAM_SPIKE,
+    random, KICK, KICK_LEFT, SNARE, STREAM_DROP, STREAM_FLAM, STREAM_FLAM_LEAD, STREAM_SPIKE,
     STREAM_WEAK_TIMING, STREAM_WEAK_VELOCITY,
 };
 
@@ -46,7 +46,7 @@ impl Mistakes {
 }
 
 pub fn dropped(seed: u64, bar: i64, step: i64, voice: usize, m: &Mistakes) -> bool {
-    let weak = if voice == KICK {
+    let weak = if voice == KICK || voice == KICK_LEFT {
         m.weak_foot as f64 * WEAK_DROP
     } else {
         0.0
@@ -65,7 +65,7 @@ pub fn offset_ms(
     m: &Mistakes,
 ) -> f64 {
     let rush = fill_progress.unwrap_or(0.0) * m.rush as f64 * RUSH_MS;
-    let late = if voice == KICK {
+    let late = if voice == KICK || voice == KICK_LEFT {
         random(seed, bar, step, voice, STREAM_WEAK_TIMING) * m.weak_foot as f64 * WEAK_LATE_MS
     } else {
         0.0
@@ -78,7 +78,7 @@ pub fn velocity(seed: u64, bar: i64, step: i64, voice: usize, v: f32, m: &Mistak
         return 1.0;
     }
     let flat = v + (FLAT_LEVEL - v) * m.flat;
-    if voice == KICK {
+    if voice == KICK || voice == KICK_LEFT {
         let r = random(seed, bar, step, voice, STREAM_WEAK_VELOCITY) as f32;
         flat * (1.0 - r * m.weak_foot * WEAK_QUIET)
     } else {

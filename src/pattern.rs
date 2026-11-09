@@ -1,15 +1,17 @@
 //! The pattern as a pure function of (bar, step, params). There's no running RNG, so looping,
 //! scrubbing and starting mid-song all give the same hits.
 
-use crate::params::{Blast, Cymbal, Division};
+use crate::params::{Blast, Cymbal, Division, Feet};
 
-pub const VOICES: usize = 6;
+pub const VOICES: usize = 7;
 pub const KICK: usize = 0;
 pub const SNARE: usize = 1;
 pub const HAT: usize = 2;
 pub const RIDE: usize = 3;
 pub const CHINA: usize = 4;
 pub const CRASH: usize = 5;
+/// The second foot of double bass. Last, so the other voices' hashes didn't move when it was added.
+pub const KICK_LEFT: usize = 6;
 
 /// Independent random streams, so changing how one is used doesn't reshuffle the others.
 pub const STREAM_THIN: u64 = 0;
@@ -25,6 +27,7 @@ pub const STREAM_FLAM_LEAD: u64 = 9;
 pub const STREAM_SPIKE: u64 = 10;
 pub const STREAM_WEAK_TIMING: u64 = 11;
 pub const STREAM_WEAK_VELOCITY: u64 = 12;
+const STREAM_DOUBLE_BASS: u64 = 13;
 
 const DRUM_VELOCITY: f32 = 0.9;
 const CYMBAL_VELOCITY: f32 = 0.7;
@@ -52,6 +55,9 @@ pub struct Pattern {
     pub half_time: f32,
     pub breakdown: f32,
     pub fill: f32,
+    /// Chance that a section block plays double bass under its snare and cymbals
+    pub double_bass: f32,
+    pub feet: Feet,
     /// Incoming notes play the kick instead of the pattern
     pub riff_follow: bool,
 }
@@ -103,6 +109,11 @@ pub fn section_at(bar: i64, p: &Pattern) -> Section {
     }
 }
 
+/// Drawn per block like a section, but separately, so double bass can run under any of them.
+fn double_bass_at(bar: i64, p: &Pattern) -> bool {
+    random(p.seed, block(bar, p), 0, KICK_LEFT, STREAM_DOUBLE_BASS) < p.double_bass as f64
+}
+
 /// The velocity each voice plays on this step, 0 for silent. Intensity only ever adds hits as it
 /// rises: each hit has a fixed threshold, lower on stronger beats.
 pub fn step_hits(bar: i64, step: i64, p: &Pattern) -> [f32; VOICES] {
@@ -122,7 +133,8 @@ pub fn step_hits(bar: i64, step: i64, p: &Pattern) -> [f32; VOICES] {
     let mut hits = [0.0; VOICES];
     let backbeat = step % (BACKBEAT_QUARTERS * spq) == BACKBEAT_QUARTERS * spq / 2;
     let eighth = step % (spq / 2) == 0;
-    let (kick, snare, cymbal_on) = match section_at(bar, p) {
+    let section = section_at(bar, p);
+    let (kick, snare, cymbal_on) = match section {
         Section::Blast => match p.blast {
             Blast::Traditional => (step % 2 == 0, step % 2 == 1, true),
             Blast::Hammer => (true, true, true),
@@ -138,7 +150,19 @@ pub fn step_hits(bar: i64, step: i64, p: &Pattern) -> [f32; VOICES] {
             (kick, !kick, step == 0)
         }
     };
-    if kick && !p.riff_follow && keep(KICK, 1.0) {
+    if section != Section::Fill && double_bass_at(bar, p) {
+        let on = match p.feet {
+            Feet::Rolls => true,
+            // x.xx, or xx. in triplets, so each gallop starts on the beat
+            Feet::Gallop if p.division == Division::SixteenthTriplet => step % 3 != 2,
+            Feet::Gallop => step % 4 != 1,
+        };
+        // Feet alternate, right on the even steps
+        let foot = if step % 2 == 0 { KICK } else { KICK_LEFT };
+        if on && !p.riff_follow && keep(foot, 1.0) {
+            hits[foot] = DRUM_VELOCITY;
+        }
+    } else if kick && !p.riff_follow && keep(KICK, 1.0) {
         hits[KICK] = DRUM_VELOCITY;
     }
     if snare && keep(SNARE, 1.0) {
@@ -180,6 +204,8 @@ mod tests {
             half_time: 0.0,
             breakdown: 0.0,
             fill: 0.0,
+            double_bass: 0.0,
+            feet: Feet::Rolls,
             riff_follow: false,
         }
     }
@@ -378,6 +404,67 @@ mod tests {
                 assert_eq!(step_hits(bar, step, &following), expected);
             }
         }
+    }
+
+    #[test]
+    fn double_bass_rolls_alternate_feet_under_every_section_but_fills() {
+        let p = Pattern {
+            double_bass: 1.0,
+            half_time: 0.5,
+            fill: 1.0,
+            ..pat()
+        };
+        for bar in 0..32 {
+            let (right, left) = (steps_with(p, bar, KICK), steps_with(p, bar, KICK_LEFT));
+            if section_at(bar, &p) == Section::Fill {
+                assert!(left.is_empty());
+                continue;
+            }
+            assert_eq!(right, (0..16).step_by(2).collect::<Vec<_>>(), "bar {bar}");
+            assert_eq!(left, (1..16).step_by(2).collect::<Vec<_>>(), "bar {bar}");
+            // The section's snare is untouched
+            let plain = Pattern {
+                double_bass: 0.0,
+                ..p
+            };
+            assert_eq!(steps_with(p, bar, SNARE), steps_with(plain, bar, SNARE));
+        }
+        let riff = Pattern {
+            riff_follow: true,
+            ..p
+        };
+        assert!(steps_with(riff, 1, KICK).is_empty() && steps_with(riff, 1, KICK_LEFT).is_empty());
+    }
+
+    #[test]
+    fn gallops_start_on_the_beat() {
+        let p = Pattern {
+            double_bass: 1.0,
+            feet: Feet::Gallop,
+            ..pat()
+        };
+        let mut feet = steps_with(p, 1, KICK);
+        feet.extend(steps_with(p, 1, KICK_LEFT));
+        feet.sort();
+        assert_eq!(feet, [0, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15]);
+    }
+
+    #[test]
+    fn double_bass_holds_for_a_block_and_follows_its_chance() {
+        let p = Pattern {
+            double_bass: 0.3,
+            ..pat()
+        };
+        let mut on = 0;
+        for b in -500..500 {
+            let first = double_bass_at(b * 4, &p);
+            for bar in 1..4 {
+                assert_eq!(double_bass_at(b * 4 + bar, &p), first);
+            }
+            on += first as i32;
+        }
+        assert!((on - 300).abs() < 60, "{on}");
+        assert!((0..100).all(|b| !double_bass_at(b, &pat())));
     }
 
     #[test]

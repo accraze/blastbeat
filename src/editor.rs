@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const WIDTH: u32 = 400;
-pub const HEIGHT: u32 = 860;
+pub const HEIGHT: u32 = 940;
 
 pub fn create(params: Arc<BlastbeatParams>) -> Option<Box<dyn Editor>> {
     create_egui_editor(

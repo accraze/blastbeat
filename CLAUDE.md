@@ -36,4 +36,4 @@ cargo clippy --release --lib
 
 ## Planned
 
-Keep these possible: double bass, tempo ramps. Double bass fits as new voices.
+Keep this possible: tempo ramps.

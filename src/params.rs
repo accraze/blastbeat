@@ -43,6 +43,14 @@ pub enum Cymbal {
     China,
 }
 
+#[derive(Enum, PartialEq, Clone, Copy)]
+pub enum Feet {
+    /// Every step, feet alternating
+    Rolls,
+    /// x.xx on each beat
+    Gallop,
+}
+
 #[derive(Params)]
 pub struct BlastbeatParams {
     #[persist = "editor-size"]
@@ -67,6 +75,11 @@ pub struct BlastbeatParams {
     pub breakdown: FloatParam,
     #[id = "fill"]
     pub fill: FloatParam,
+
+    #[id = "doublebass"]
+    pub double_bass: FloatParam,
+    #[id = "feet"]
+    pub feet: EnumParam<Feet>,
 
     #[id = "rifffollow"]
     pub riff_follow: BoolParam,
@@ -100,6 +113,8 @@ pub struct BlastbeatParams {
 
     #[id = "kick"]
     pub note_kick: IntParam,
+    #[id = "kickleft"]
+    pub note_kick_left: IntParam,
     #[id = "snare"]
     pub note_snare: IntParam,
     #[id = "hat"]
@@ -155,6 +170,8 @@ impl Default for BlastbeatParams {
             half_time: knob("Half-Time", 0.0),
             breakdown: knob("Breakdown", 0.0),
             fill: knob("Fill", 0.0),
+            double_bass: knob("Double Bass", 0.0),
+            feet: EnumParam::new("Double Bass Style", Feet::Rolls),
             riff_follow: BoolParam::new("Riff Follow", false),
             human: knob("Human", 0.5),
             jitter: knob("Jitter", 0.5),
@@ -188,6 +205,8 @@ impl Default for BlastbeatParams {
             lock: BoolParam::new("Lock Seed", false),
             // General MIDI drum notes
             note_kick: note("Kick Note", 36),
+            // The same pad as the right foot, so double bass plays on any kit
+            note_kick_left: note("Left Kick Note", 36),
             note_snare: note("Snare Note", 38),
             note_hat: note("Hat Note", 42),
             note_ride: note("Ride Note", 51),

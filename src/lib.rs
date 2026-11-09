@@ -87,6 +87,8 @@ impl Plugin for Blastbeat {
             half_time: p.half_time.value(),
             breakdown: p.breakdown.value(),
             fill: p.fill.value(),
+            double_bass: p.double_bass.value(),
+            feet: p.feet.value(),
             riff_follow: p.riff_follow.value(),
         };
         let human = p.human.value();
@@ -111,6 +113,7 @@ impl Plugin for Blastbeat {
             &p.note_ride,
             &p.note_china,
             &p.note_crash,
+            &p.note_kick_left,
         ]
         .map(|n| n.value() as u8);
 

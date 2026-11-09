@@ -6,6 +6,15 @@ All notable changes to Blastbeat are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-08
+
+### Added
+- Double Bass: a per-block chance of double bass under any section, as Rolls or Gallop, with the feet
+  alternating between Kick Note and a new Left Kick Note. It defaults to 0%, so existing projects are unchanged.
+
+### Fixed
+- Two voices set to the same note no longer overlap: a new hit ends the note before retriggering it.
+
 ## [0.4.0] - 2026-11-08
 
 ### Added
@@ -33,7 +42,8 @@ All notable changes to Blastbeat are documented here. The format follows
 - Feel: Jitter, Drift and Drift Rate, scaled by the Human macro.
 - Seed with a Reroll button and a lock, and an Intensity macro.
 
-[Unreleased]: https://github.com/accraze/blastbeat/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/accraze/blastbeat/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/accraze/blastbeat/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/accraze/blastbeat/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/accraze/blastbeat/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/accraze/blastbeat/compare/v0.1.0...v0.2.0

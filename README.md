@@ -22,6 +22,8 @@ looping, scrubbing and starting mid-song all produce the same hits.
 | Half-Time   | `halftime`  | 0–100%                      | 0%          | Chance a block is half-time |
 | Breakdown   | `breakdown` | 0–100%                      | 0%          | Chance a block is a breakdown |
 | Fill        | `fill`      | 0–100%                      | 0%          | Chance a block's last bar is a fill |
+| Double Bass | `doublebass` | 0–100%                     | 0%          | Chance a block plays double bass under its snare and cymbals |
+| Double Bass Style | `feet` | Rolls, Gallop             | Rolls       | Rolls kick every step; Gallop plays x.xx on each beat (xx. in 1/16T) |
 | Riff Follow | `rifffollow` | On, Off                    | Off         | Incoming notes play the kick instead of the pattern |
 | Human       | `human`     | 0–100%                      | 50%         | Machine-to-human macro: scales Jitter and Drift. 0% is dead on the grid |
 | Jitter      | `jitter`    | 0–100%                      | 50%         | Independent per-limb randomness, up to ±15 ms and ±0.2 velocity |
@@ -29,7 +31,7 @@ looping, scrubbing and starting mid-song all produce the same hits.
 | Drift Rate  | `driftrate` | 0.1–8 per bar               | 0.5         | How fast Drift wanders |
 | Amateur     | `amateur`   | 0–100%                      | 0%          | Macro: scales the five mistakes below. 0% turns them all off |
 | Rush        | `rush`      | 0–100%                      | 50%         | Fills speed up through the bar, up to 40 ms early by the end |
-| Weak Foot   | `weakfoot`  | 0–100%                      | 50%         | The kick drags up to 12 ms, plays up to 40% quieter, and misses up to 25% of hits |
+| Weak Foot   | `weakfoot`  | 0–100%                      | 50%         | The kick, both feet, drags up to 12 ms, plays up to 40% quieter, and misses up to 25% of hits |
 | Drops       | `drops`     | 0–100%                      | 50%         | Any hit can go missing, up to 15% of them |
 | Flams       | `flams`     | 0–100%                      | 50%         | Up to 15% of kicks and snares get a half-velocity grace note 12–30 ms ahead |
 | Flat Velocity | `flatvel` | 0–100%                      | 50%         | Pulls every hit toward one level, with up to 6% spiking to full velocity |
@@ -53,6 +55,16 @@ from the seed, so a given position always gets the same section. It doesn't depe
 
 If Half-Time and Breakdown add up past 100%, they share it in proportion and no block is a plain blast.
 With all three at 0%, the default, every block is a blast. Intensity thins every section, and Crash Every still applies.
+
+## Double Bass
+
+Each block also draws, separately from its section, whether it's a double-bass block. The double bass
+replaces the section's kick, with the feet alternating: the right foot (Kick Note) on even steps and
+the left (Left Kick Note) on odd ones. Snare and cymbals keep following the section, so you can get
+double bass under a blast, half-time or breakdown. Fill bars keep their fill. Riff Follow mutes both feet.
+
+Left Kick Note defaults to the same pad as the kick, so it works on any kit. Set it to another pad to
+give each foot its own sample.
 
 ## Riff Follow
 
@@ -80,6 +92,7 @@ Each voice has a param with its MIDI note number, 0–127, defaulting to General
 | Voice | Param      | ID          | Default |
 |-------|------------|-------------|---------|
 | Kick  | Kick Note  | `kick`      | 36      |
+| Left kick | Left Kick Note | `kickleft` | 36   |
 | Snare | Snare Note | `snare`     | 38      |
 | Hat   | Hat Note   | `hat`       | 42      |
 | Ride  | Ride Note  | `ride`      | 51      |
