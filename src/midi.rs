@@ -3,11 +3,12 @@
 //! Each block looks for hits whose grid position is within the largest feel offset of the block,
 //! and emits those whose offset time lands inside it. Nothing is queued, so a hit pushed early is
 //! simply found before its grid position arrives. The state here only tracks sounding notes and
-//! transport continuity; it never affects which hits exist.
+//! transport continuity; it never affects which hits exist. Riff Follow is the one outside input:
+//! its kicks come from incoming notes, so they're only as repeatable as the riff itself.
 
 use crate::feel::{self, Feel, MAX_OFFSET_MS};
 use crate::mistakes;
-use crate::pattern::{section_at, step_hits, Pattern, Section, VOICES};
+use crate::pattern::{section_at, step_hits, Pattern, Section, KICK, VOICES};
 use nih_plug::prelude::*;
 
 /// Length of each note. The Drum Machine plays one-shots, so this only has to be short and non-zero.
@@ -15,6 +16,11 @@ const GATE_MS: f64 = 30.0;
 /// shortcut: hits past this in one block are dropped, which takes about a 1.4 s block at 300 BPM.
 /// Note ons and offs together also stay under nih-plug's preallocated 512 output events.
 const MAX_HITS: usize = 240;
+/// Notes this close together are one kick, so a chord or a loose strum doesn't flam the foot
+const RIFF_CHORD_MS: f64 = 15.0;
+/// shortcut: riff kicks past this in one block are dropped, far more than the chord window allows
+/// at any normal block size.
+const MAX_RIFF: usize = 32;
 
 /// The host transport for one block. Positions are in quarter notes.
 /// shortcut: assumes the position runs straight through a block, so a loop wrap inside one plays
@@ -37,15 +43,47 @@ struct Hit {
     velocity: f32,
 }
 
-#[derive(Default)]
 pub struct Scheduler {
+    samples_per_ms: f64,
     /// Where the previous block ended, `None` after a stop
     last_end: Option<f64>,
     /// Note number and the sample of its note off, relative to the current block
     sounding: [Option<(u8, i64)>; VOICES],
+    /// Riff kicks waiting for this block's `process`
+    riff: [Hit; MAX_RIFF],
+    riff_count: usize,
+    /// The sample of the last riff kick, relative to the current block
+    last_riff: i64,
 }
 
 impl Scheduler {
+    pub fn new(sample_rate: f32) -> Self {
+        Self {
+            samples_per_ms: sample_rate as f64 / 1000.0,
+            last_end: None,
+            sounding: [None; VOICES],
+            riff: [Hit::default(); MAX_RIFF],
+            riff_count: 0,
+            last_riff: i64::MIN / 2,
+        }
+    }
+
+    /// Queues a kick for an incoming note in the coming block. Call it in time order.
+    pub fn riff_note(&mut self, timing: u32, velocity: f32) {
+        let at = timing as i64;
+        let window = (RIFF_CHORD_MS * self.samples_per_ms) as i64;
+        if at - self.last_riff < window || self.riff_count == MAX_RIFF {
+            return;
+        }
+        self.riff[self.riff_count] = Hit {
+            sample: timing,
+            voice: KICK as u8,
+            velocity,
+        };
+        self.riff_count += 1;
+        self.last_riff = at;
+    }
+
     /// `clock` is `None` while the transport is stopped, which still lets sounding notes finish.
     pub fn process(
         &mut self,
@@ -60,8 +98,16 @@ impl Scheduler {
             return;
         }
         let mut hits = [Hit::default(); MAX_HITS];
-        let mut count = 0;
-        let mut gate = 0;
+        let gate = (GATE_MS * self.samples_per_ms) as i64;
+        for (hit, riff) in hits.iter_mut().zip(&self.riff[..self.riff_count]) {
+            *hit = Hit {
+                sample: riff.sample.min(samples as u32 - 1),
+                ..*riff
+            };
+        }
+        let mut count = self.riff_count;
+        self.riff_count = 0;
+        self.last_riff -= samples as i64;
         match clock {
             Some(c) => {
                 let end = c.pos + samples as f64 * c.q_per_sample;
@@ -72,7 +118,6 @@ impl Scheduler {
                     _ => (c.pos, true),
                 };
                 self.last_end = Some(end);
-                gate = (GATE_MS * c.q_per_ms / c.q_per_sample) as i64;
                 scan(
                     &c,
                     start,
@@ -230,6 +275,7 @@ mod tests {
             half_time: 0.0,
             breakdown: 0.0,
             fill: 0.0,
+            riff_follow: false,
         }
     }
 
@@ -327,9 +373,9 @@ mod tests {
     fn block_size_does_not_change_the_output() {
         let end = ONE_BAR * 8;
         for (p, f) in [(pat(), HUMAN), (sections(), SLOPPY)] {
-            let a = play(&mut Scheduler::default(), 0, end, 64, &p, &f);
+            let a = play(&mut Scheduler::new(FS as f32), 0, end, 64, &p, &f);
             for block in [128, 441, 1024, 4096] {
-                let b = play(&mut Scheduler::default(), 0, end, block, &p, &f);
+                let b = play(&mut Scheduler::new(FS as f32), 0, end, block, &p, &f);
                 // The bigger blocks run slightly past the end
                 let b: Vec<_> = b.into_iter().filter(|e| e.0 < end).collect();
                 let a: Vec<_> = a.iter().copied().filter(|e| e.0 < end).collect();
@@ -343,8 +389,8 @@ mod tests {
         let from = ONE_BAR * 5 + ONE_BAR / 2 + 123;
         let to = ONE_BAR * 9;
         for (p, f) in [(pat(), HUMAN), (sections(), HUMAN), (sections(), SLOPPY)] {
-            let whole = play(&mut Scheduler::default(), 0, to, 256, &p, &f);
-            let mid = play(&mut Scheduler::default(), from, to, 256, &p, &f);
+            let whole = play(&mut Scheduler::new(FS as f32), 0, to, 256, &p, &f);
+            let mid = play(&mut Scheduler::new(FS as f32), from, to, 256, &p, &f);
             // Past the first moments, where a hit pushed before the start plays right away instead
             let max_ms = MAX_OFFSET_MS + mistakes::MAX_EARLY_MS;
             let settled = from + (max_ms * FS / 1000.0) as i64 + 1;
@@ -357,7 +403,7 @@ mod tests {
 
     #[test]
     fn looping_repeats_exactly_and_holds_up_across_a_jump() {
-        let mut s = Scheduler::default();
+        let mut s = Scheduler::new(FS as f32);
         let first = play(&mut s, ONE_BAR * 2, ONE_BAR * 4, 256, &pat(), &HUMAN);
         let second = play(&mut s, ONE_BAR * 2, ONE_BAR * 4, 256, &pat(), &HUMAN);
         assert_eq!(first, second);
@@ -370,7 +416,7 @@ mod tests {
         let window = (MAX_OFFSET_MS * FS / 1000.0) as i64 + 256;
         for seed in 0..50 {
             let p = Pattern { seed, ..pat() };
-            let on = play(&mut Scheduler::default(), 0, window, 256, &p, &HUMAN);
+            let on = play(&mut Scheduler::new(FS as f32), 0, window, 256, &p, &HUMAN);
             for note in [NOTES[0], NOTES[5]] {
                 let n = on.iter().filter(|e| e.1 == note).count();
                 assert_eq!(n, 1, "seed {seed}, note {note}");
@@ -384,7 +430,14 @@ mod tests {
             intensity: 1.0,
             ..pat()
         };
-        let on = play(&mut Scheduler::default(), 0, ONE_BAR * 4, 333, &p, &HUMAN);
+        let on = play(
+            &mut Scheduler::new(FS as f32),
+            0,
+            ONE_BAR * 4,
+            333,
+            &p,
+            &HUMAN,
+        );
         // Sixteenths for four bars: one drum and a ride each step, and the crash on bar 0
         // (a last hit pushed past the end, and bar 4's pushed before it, may come and go)
         let expected = 16 * 4 * 2 + 1;
@@ -392,13 +445,20 @@ mod tests {
         let settled = on.iter().filter(|e| e.0 < near_end).count();
         assert!((expected - 6..=expected).contains(&settled), "{settled}");
         // Machine feel has no pushes, so the count is exact
-        let on = play(&mut Scheduler::default(), 0, ONE_BAR * 4, 333, &p, &MACHINE);
+        let on = play(
+            &mut Scheduler::new(FS as f32),
+            0,
+            ONE_BAR * 4,
+            333,
+            &p,
+            &MACHINE,
+        );
         assert_eq!(on.iter().filter(|e| e.0 < ONE_BAR * 4).count(), expected);
     }
 
     #[test]
     fn notes_all_end_after_stopping() {
-        let mut s = Scheduler::default();
+        let mut s = Scheduler::new(FS as f32);
         let (mut on, mut off) = (0, 0);
         let mut count = |e: NoteEvent<()>| match e {
             NoteEvent::NoteOn { .. } => on += 1,
@@ -437,8 +497,22 @@ mod tests {
             crash_every: 0,
             ..pat()
         };
-        let on = play(&mut Scheduler::default(), 0, ONE_BAR * 8, 256, &p, &flams);
-        let dead_on = play(&mut Scheduler::default(), 0, ONE_BAR * 8, 256, &p, &MACHINE);
+        let on = play(
+            &mut Scheduler::new(FS as f32),
+            0,
+            ONE_BAR * 8,
+            256,
+            &p,
+            &flams,
+        );
+        let dead_on = play(
+            &mut Scheduler::new(FS as f32),
+            0,
+            ONE_BAR * 8,
+            256,
+            &p,
+            &MACHINE,
+        );
         assert!(on.len() > dead_on.len());
         // Every main hit is still at its machine time, and each extra one is a quieter grace note
         let is_main =
@@ -463,8 +537,22 @@ mod tests {
             },
             ..MACHINE
         };
-        let grid = play(&mut Scheduler::default(), 0, ONE_BAR * 5, 256, &p, &MACHINE);
-        let on = play(&mut Scheduler::default(), 0, ONE_BAR * 5, 256, &p, &rushed);
+        let grid = play(
+            &mut Scheduler::new(FS as f32),
+            0,
+            ONE_BAR * 5,
+            256,
+            &p,
+            &MACHINE,
+        );
+        let on = play(
+            &mut Scheduler::new(FS as f32),
+            0,
+            ONE_BAR * 5,
+            256,
+            &p,
+            &rushed,
+        );
         assert_eq!(grid.len(), on.len());
         // Bar 3 is the fill. Past its halfway point every hit is over 20 ms early, about 960 samples
         for (g, r) in grid.iter().zip(&on) {
@@ -474,6 +562,102 @@ mod tests {
                 assert!(r.0 < g.0 - 900, "{g:?} {r:?}");
             }
         }
+    }
+
+    /// (absolute sample, note, velocity) of each note on, playing one riff note list per block.
+    fn play_riff(
+        s: &mut Scheduler,
+        clock: impl Fn(i64) -> Option<Clock>,
+        blocks: &[&[(u32, f32)]],
+        p: &Pattern,
+    ) -> (Vec<(i64, u8, f32)>, usize) {
+        let (mut on, mut off) = (vec![], 0);
+        for (i, riff) in blocks.iter().enumerate() {
+            let start = i as i64 * 512;
+            for &(timing, velocity) in riff.iter() {
+                s.riff_note(timing, velocity);
+            }
+            let mut last = 0;
+            s.process(clock(start), 512, p, &MACHINE, &NOTES, |e| {
+                assert!(e.timing() >= last && e.timing() < 512);
+                last = e.timing();
+                match e {
+                    NoteEvent::NoteOn { note, velocity, .. } => {
+                        on.push((start + e.timing() as i64, note, velocity))
+                    }
+                    NoteEvent::NoteOff { .. } => off += 1,
+                    _ => {}
+                }
+            });
+        }
+        (on, off)
+    }
+
+    #[test]
+    fn riff_notes_play_the_kick_while_stopped_and_end() {
+        let mut s = Scheduler::new(FS as f32);
+        let empty: &[(u32, f32)] = &[];
+        let blocks = [&[(100, 0.6)][..], empty, empty, empty];
+        let (on, off) = play_riff(&mut s, |_| None, &blocks, &pat());
+        assert_eq!(on, [(100, NOTES[0], 0.6)]);
+        assert_eq!(off, 1);
+    }
+
+    #[test]
+    fn chords_are_one_kick_even_across_blocks() {
+        let mut s = Scheduler::new(FS as f32);
+        // The window is 720 samples at 48 kHz: 500 fires, 512 + 700 is too soon, 512 + 709 fires
+        let blocks = [
+            &[(500, 0.6), (500, 0.9), (510, 0.9)][..],
+            &[(0, 0.9), (700, 0.9)][..],
+        ];
+        let blocks: Vec<&[(u32, f32)]> = blocks.into_iter().collect();
+        let (on, _) = play_riff(&mut s, |_| None, &blocks, &pat());
+        assert_eq!(on, [(500, NOTES[0], 0.6)]);
+
+        let mut s = Scheduler::new(FS as f32);
+        s.riff_note(500, 0.6);
+        s.process(None, 512, &pat(), &MACHINE, &NOTES, |_| {});
+        s.riff_note(700, 0.7);
+        s.riff_note(709, 0.8);
+        let mut velocities = vec![];
+        s.process(None, 1024, &pat(), &MACHINE, &NOTES, |e| {
+            if let NoteEvent::NoteOn { velocity, .. } = e {
+                velocities.push(velocity);
+            }
+        });
+        assert_eq!(velocities, [0.8]);
+    }
+
+    #[test]
+    fn riff_kicks_replace_the_pattern_kick_and_merge_in_order() {
+        let p = Pattern {
+            riff_follow: true,
+            intensity: 1.0,
+            ..pat()
+        };
+        let plain = Pattern {
+            riff_follow: false,
+            ..p
+        };
+        let empty: &[(u32, f32)] = &[];
+        let riff = [(333, 0.5)];
+        let mut blocks = vec![empty; 64];
+        blocks[10] = &riff;
+        let clock = |at| Some(clock_at(at));
+        let mut s = Scheduler::new(FS as f32);
+        let (on, _) = play_riff(&mut s, clock, &blocks, &p);
+        let mut s = Scheduler::new(FS as f32);
+        let (base, _) = play_riff(&mut s, clock, &blocks, &plain);
+
+        let kicks: Vec<_> = on.iter().filter(|e| e.1 == NOTES[0]).collect();
+        assert_eq!(kicks, [&(10 * 512 + 333, NOTES[0], 0.5)]);
+        // Riff timing doesn't disturb the other limbs
+        let others = |x: &[(i64, u8, f32)]| -> Vec<(i64, u8, f32)> {
+            x.iter().copied().filter(|e| e.1 != NOTES[0]).collect()
+        };
+        assert_eq!(others(&on), others(&base));
+        assert!(base.iter().filter(|e| e.1 == NOTES[0]).count() > 1);
     }
 
     #[test]

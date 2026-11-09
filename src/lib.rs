@@ -25,7 +25,7 @@ impl Default for Blastbeat {
     fn default() -> Self {
         Self {
             params: Arc::new(BlastbeatParams::default()),
-            scheduler: Scheduler::default(),
+            scheduler: Scheduler::new(48000.0),
             sample_rate: 48000.0,
         }
     }
@@ -40,6 +40,7 @@ impl Plugin for Blastbeat {
 
     // Pure note effect, no audio
     const AUDIO_IO_LAYOUTS: &'static [AudioIOLayout] = &[];
+    const MIDI_INPUT: MidiConfig = MidiConfig::Basic;
     const MIDI_OUTPUT: MidiConfig = MidiConfig::Basic;
 
     type SysExMessage = ();
@@ -64,7 +65,7 @@ impl Plugin for Blastbeat {
     }
 
     fn reset(&mut self) {
-        self.scheduler = Scheduler::default();
+        self.scheduler = Scheduler::new(self.sample_rate);
     }
 
     fn process(
@@ -86,6 +87,7 @@ impl Plugin for Blastbeat {
             half_time: p.half_time.value(),
             breakdown: p.breakdown.value(),
             fill: p.fill.value(),
+            riff_follow: p.riff_follow.value(),
         };
         let human = p.human.value();
         let amateur = p.amateur.value();
@@ -111,6 +113,17 @@ impl Plugin for Blastbeat {
             &p.note_crash,
         ]
         .map(|n| n.value() as u8);
+
+        if pattern.riff_follow {
+            while let Some(event) = context.next_event() {
+                if let NoteEvent::NoteOn {
+                    timing, velocity, ..
+                } = event
+                {
+                    self.scheduler.riff_note(timing, velocity);
+                }
+            }
+        }
 
         self.scheduler
             .process(clock, buffer.samples(), &pattern, &feel, &notes, |e| {

@@ -27,7 +27,8 @@ cargo clippy --release --lib
   `MAX_OFFSET_MS` must cover every offset, because the scheduler's lookahead depends on it.
 - `mistakes.rs`: the amateur layer, also pure. `MAX_EARLY_MS` adds to the lookahead the same way `MAX_OFFSET_MS` does.
 - `midi.rs`: `Scheduler` finds hits due in the block and emits sorted events. Its only state is sounding notes and
-  where the last block ended; it must never affect which hits exist.
+  where the last block ended; it must never affect which hits exist. Riff Follow kicks are the exception: `riff_note`
+  queues them from incoming notes, including while stopped, so the note length can't depend on the transport.
 - `params.rs`: params and enums. `editor.rs`: generic param list plus Reroll. A plugin can only set its own params
   from the GUI, so Reroll has to live there.
 - The audio thread must not allocate (`assert_process_allocs` is enabled).
@@ -35,5 +36,4 @@ cargo clippy --release --lib
 
 ## Planned
 
-Keep these possible: double bass, riff-follow, tempo ramps. They fit as new voices
-(double bass) and a `MIDI_INPUT` (riff-follow).
+Keep these possible: double bass, tempo ramps. Double bass fits as new voices.

@@ -52,6 +52,8 @@ pub struct Pattern {
     pub half_time: f32,
     pub breakdown: f32,
     pub fill: f32,
+    /// Incoming notes play the kick instead of the pattern
+    pub riff_follow: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -136,7 +138,7 @@ pub fn step_hits(bar: i64, step: i64, p: &Pattern) -> [f32; VOICES] {
             (kick, !kick, step == 0)
         }
     };
-    if kick && keep(KICK, 1.0) {
+    if kick && !p.riff_follow && keep(KICK, 1.0) {
         hits[KICK] = DRUM_VELOCITY;
     }
     if snare && keep(SNARE, 1.0) {
@@ -178,6 +180,7 @@ mod tests {
             half_time: 0.0,
             breakdown: 0.0,
             fill: 0.0,
+            riff_follow: false,
         }
     }
 
@@ -354,6 +357,27 @@ mod tests {
         assert_eq!(kicks.len() + snares.len(), 16);
         assert!(!kicks.is_empty() && !snares.is_empty());
         assert!(kicks.iter().all(|s| !snares.contains(s)));
+    }
+
+    #[test]
+    fn riff_follow_only_removes_the_kick() {
+        let sections = Pattern {
+            half_time: 0.3,
+            breakdown: 0.3,
+            fill: 0.5,
+            ..pat()
+        };
+        let following = Pattern {
+            riff_follow: true,
+            ..sections
+        };
+        for bar in 0..64 {
+            for step in 0..16 {
+                let mut expected = step_hits(bar, step, &sections);
+                expected[KICK] = 0.0;
+                assert_eq!(step_hits(bar, step, &following), expected);
+            }
+        }
     }
 
     #[test]

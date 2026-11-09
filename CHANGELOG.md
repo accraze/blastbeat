@@ -6,6 +6,12 @@ All notable changes to Blastbeat are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-08
+
+### Added
+- Riff Follow: incoming notes play the kick instead of the pattern, at their own timing and velocity, with
+  chords counting as one kick. It defaults to off, so existing projects are unchanged.
+
 ## [0.3.0] - 2026-11-06
 
 ### Added
@@ -27,7 +33,8 @@ All notable changes to Blastbeat are documented here. The format follows
 - Feel: Jitter, Drift and Drift Rate, scaled by the Human macro.
 - Seed with a Reroll button and a lock, and an Intensity macro.
 
-[Unreleased]: https://github.com/accraze/blastbeat/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/accraze/blastbeat/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/accraze/blastbeat/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/accraze/blastbeat/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/accraze/blastbeat/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/accraze/blastbeat/releases/tag/v0.1.0

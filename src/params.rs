@@ -68,6 +68,9 @@ pub struct BlastbeatParams {
     #[id = "fill"]
     pub fill: FloatParam,
 
+    #[id = "rifffollow"]
+    pub riff_follow: BoolParam,
+
     #[id = "human"]
     pub human: FloatParam,
     #[id = "jitter"]
@@ -152,6 +155,7 @@ impl Default for BlastbeatParams {
             half_time: knob("Half-Time", 0.0),
             breakdown: knob("Breakdown", 0.0),
             fill: knob("Fill", 0.0),
+            riff_follow: BoolParam::new("Riff Follow", false),
             human: knob("Human", 0.5),
             jitter: knob("Jitter", 0.5),
             drift: knob("Drift", 0.3),

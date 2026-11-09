@@ -4,7 +4,7 @@
 
 A MIDI note effect (CLAP / VST3) that generates blast-beat drum patterns from the host transport,
 built with [nih-plug](https://github.com/robbert-vdh/nih-plug). Put it before Bitwig's Drum Machine
-and press play. It has no audio I/O and ignores incoming notes.
+and press play. It has no audio I/O. Incoming notes are ignored unless Riff Follow is on.
 
 The pattern is a pure function of bar, step, seed and params, with no running random state, so
 looping, scrubbing and starting mid-song all produce the same hits.
@@ -22,6 +22,7 @@ looping, scrubbing and starting mid-song all produce the same hits.
 | Half-Time   | `halftime`  | 0–100%                      | 0%          | Chance a block is half-time |
 | Breakdown   | `breakdown` | 0–100%                      | 0%          | Chance a block is a breakdown |
 | Fill        | `fill`      | 0–100%                      | 0%          | Chance a block's last bar is a fill |
+| Riff Follow | `rifffollow` | On, Off                    | Off         | Incoming notes play the kick instead of the pattern |
 | Human       | `human`     | 0–100%                      | 50%         | Machine-to-human macro: scales Jitter and Drift. 0% is dead on the grid |
 | Jitter      | `jitter`    | 0–100%                      | 50%         | Independent per-limb randomness, up to ±15 ms and ±0.2 velocity |
 | Drift       | `drift`     | 0–100%                      | 30%         | Timing wobble shared by all limbs, up to ±30 ms: the tape-warped drum machine |
@@ -52,6 +53,19 @@ from the seed, so a given position always gets the same section. It doesn't depe
 
 If Half-Time and Breakdown add up past 100%, they share it in proportion and no block is a plain blast.
 With all three at 0%, the default, every block is a blast. Intensity thins every section, and Crash Every still applies.
+
+## Riff Follow
+
+With Riff Follow on, the pattern's kick is muted and each incoming note fires a kick at that note's
+timing and velocity, so the kick locks to your riff. Snare, cymbals and sections carry on from the pattern.
+
+- Notes within 15 ms of each other count as one kick, so power chords don't flam.
+- Note pitches and note lengths don't matter, and the notes aren't passed through.
+- It works with the transport stopped, so you can play kicks live, though nothing else plays until you press play.
+- Human and Amateur don't touch these kicks. They already carry the riff's own timing.
+
+To drive it from a riff on another track in Bitwig, put a Note Receiver set to that track at the start of
+the chain: Note Receiver, Blastbeat, Drum Machine. The riff track keeps playing its own instrument.
 
 ## Mistakes
 
