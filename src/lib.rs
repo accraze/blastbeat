@@ -5,7 +5,7 @@ use midi::{Clock, Scheduler};
 use mistakes::Mistakes;
 use nih_plug::prelude::*;
 use params::BlastbeatParams;
-use pattern::Pattern;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 
 mod editor;
@@ -19,6 +19,8 @@ struct Blastbeat {
     params: Arc<BlastbeatParams>,
     scheduler: Scheduler,
     sample_rate: f32,
+    /// The bar playing now, for the editor's song map
+    bar: Arc<AtomicI64>,
 }
 
 impl Default for Blastbeat {
@@ -27,6 +29,7 @@ impl Default for Blastbeat {
             params: Arc::new(BlastbeatParams::default()),
             scheduler: Scheduler::new(48000.0),
             sample_rate: 48000.0,
+            bar: Arc::new(AtomicI64::new(0)),
         }
     }
 }
@@ -51,7 +54,7 @@ impl Plugin for Blastbeat {
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
-        editor::create(self.params.clone())
+        editor::create(self.params.clone(), self.bar.clone())
     }
 
     fn initialize(
@@ -75,22 +78,12 @@ impl Plugin for Blastbeat {
         context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
         let clock = self.read_clock(context.transport());
+        if let Some(c) = clock {
+            let bar = c.bar + ((c.pos - c.bar_start) / c.bar_len).floor() as i64;
+            self.bar.store(bar, Ordering::Relaxed);
+        }
         let p = &self.params;
-        let pattern = Pattern {
-            seed: p.seed.value() as u64,
-            blast: p.blast.value(),
-            division: p.division.value(),
-            cymbal: p.cymbal.value(),
-            crash_every: p.crash_every.value() as i64,
-            intensity: p.intensity.value(),
-            section_bars: p.section_bars.value() as i64,
-            half_time: p.half_time.value(),
-            breakdown: p.breakdown.value(),
-            fill: p.fill.value(),
-            double_bass: p.double_bass.value(),
-            feet: p.feet.value(),
-            riff_follow: p.riff_follow.value(),
-        };
+        let pattern = p.pattern();
         let human = p.human.value();
         let amateur = p.amateur.value();
         let feel = Feel {

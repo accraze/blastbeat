@@ -6,6 +6,15 @@ All notable changes to Blastbeat are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-09
+
+### Added
+- Song map: 32 bars of upcoming sections and double bass at the top of the window, with the bar playing now outlined.
+- Recent seeds: the seeds you reroll away from stay as buttons next to Reroll, so you can go back to them.
+
+### Changed
+- The param list is now grouped and much shorter, with Human and Amateur details and the drum map folded away.
+
 ## [0.5.0] - 2026-11-08
 
 ### Added
@@ -42,7 +51,8 @@ All notable changes to Blastbeat are documented here. The format follows
 - Feel: Jitter, Drift and Drift Rate, scaled by the Human macro.
 - Seed with a Reroll button and a lock, and an Intensity macro.
 
-[Unreleased]: https://github.com/accraze/blastbeat/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/accraze/blastbeat/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/accraze/blastbeat/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/accraze/blastbeat/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/accraze/blastbeat/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/accraze/blastbeat/compare/v0.2.0...v0.3.0

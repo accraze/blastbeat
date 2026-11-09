@@ -1,6 +1,7 @@
 //! Host-facing parameters. Param IDs are saved in projects, so they must never change.
 
 use crate::editor;
+use crate::pattern::Pattern;
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
 use std::sync::Arc;
@@ -129,6 +130,27 @@ pub struct BlastbeatParams {
 
 /// Highest seed. Params are normalized to f32, so a much larger range wouldn't round-trip exactly.
 pub const SEED_MAX: i32 = 99_999;
+
+impl BlastbeatParams {
+    /// The current pattern settings, shared by the audio thread and the song map.
+    pub fn pattern(&self) -> Pattern {
+        Pattern {
+            seed: self.seed.value() as u64,
+            blast: self.blast.value(),
+            division: self.division.value(),
+            cymbal: self.cymbal.value(),
+            crash_every: self.crash_every.value() as i64,
+            intensity: self.intensity.value(),
+            section_bars: self.section_bars.value() as i64,
+            half_time: self.half_time.value(),
+            breakdown: self.breakdown.value(),
+            fill: self.fill.value(),
+            double_bass: self.double_bass.value(),
+            feet: self.feet.value(),
+            riff_follow: self.riff_follow.value(),
+        }
+    }
+}
 
 fn knob(name: &str, default: f32) -> FloatParam {
     FloatParam::new(name, default, FloatRange::Linear { min: 0.0, max: 1.0 })

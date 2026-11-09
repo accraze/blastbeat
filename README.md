@@ -38,7 +38,17 @@ looping, scrubbing and starting mid-song all produce the same hits.
 | Seed        | `seed`      | 0–99999                     | 1           | Selects the random pattern. Saved with the project and automatable |
 | Lock Seed   | `lock`      | On, Off                     | Off         | Disables the Reroll button. Seed can still be set by hand or automation |
 
-The Reroll button in the plugin window picks a new Seed. All params can be automated, and any of
+The Reroll button in the plugin window picks a new Seed, and the seeds you leave appear next to it
+as Recent buttons, so you can go back to a good one. Recent seeds last while the plugin is loaded
+and aren't saved with the project.
+
+The window groups the params and folds away the detail behind Human and Amateur, plus the drum map.
+The host still sees every param.
+
+The song map at the top of the window shows 32 bars of sections, with the bar playing now outlined
+and a white line under double-bass bars. It's worked out from the params, so changing a chance or
+rerolling redraws the song ahead before you hear it. It shows sections only, not the Human or
+Amateur timing. All params can be automated, and any of
 them, such as Intensity, can be mapped to a MIDI CC with the host's controller mapping.
 
 ## Sections

@@ -110,7 +110,7 @@ pub fn section_at(bar: i64, p: &Pattern) -> Section {
 }
 
 /// Drawn per block like a section, but separately, so double bass can run under any of them.
-fn double_bass_at(bar: i64, p: &Pattern) -> bool {
+pub fn double_bass_at(bar: i64, p: &Pattern) -> bool {
     random(p.seed, block(bar, p), 0, KICK_LEFT, STREAM_DOUBLE_BASS) < p.double_bass as f64
 }
 
