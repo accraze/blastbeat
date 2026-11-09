@@ -43,10 +43,11 @@ as Recent buttons, so you can go back to a good one. Recent seeds last while the
 and aren't saved with the project.
 
 The window groups the params and folds away the detail behind Human and Amateur, plus the drum map.
-The host still sees every param.
+The host still sees every param. Params with no effect right now are dimmed but still work, so you can set
+them up first. Drag the bottom-right corner to resize the window.
 
 The song map at the top of the window shows 32 bars of sections, with the bar playing now outlined
-and a white line under double-bass bars. It's worked out from the params, so changing a chance or
+and a white line under double-bass bars. Hover a bar for its number and section. It's worked out from the params, so changing a chance or
 rerolling redraws the song ahead before you hear it. It shows sections only, not the Human or
 Amateur timing. All params can be automated, and any of
 them, such as Intensity, can be mapped to a MIDI CC with the host's controller mapping.

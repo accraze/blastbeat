@@ -6,6 +6,15 @@ All notable changes to Blastbeat are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-09
+
+### Added
+- The window can be resized from its bottom-right corner.
+- Hovering a bar on the song map shows its number and section, and gaps mark each section block.
+
+### Changed
+- Params that have no effect right now are dimmed, and still work.
+
 ## [0.6.0] - 2026-11-09
 
 ### Added
@@ -51,7 +60,8 @@ All notable changes to Blastbeat are documented here. The format follows
 - Feel: Jitter, Drift and Drift Rate, scaled by the Human macro.
 - Seed with a Reroll button and a lock, and an Intensity macro.
 
-[Unreleased]: https://github.com/accraze/blastbeat/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/accraze/blastbeat/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/accraze/blastbeat/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/accraze/blastbeat/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/accraze/blastbeat/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/accraze/blastbeat/compare/v0.3.0...v0.4.0
