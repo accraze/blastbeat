@@ -40,7 +40,8 @@ looping, scrubbing and starting mid-song all produce the same hits.
 
 The Reroll button in the plugin window picks a new Seed, and the seeds you leave appear next to it
 as Recent buttons, so you can go back to a good one. Recent seeds last while the plugin is loaded
-and aren't saved with the project.
+and aren't saved with the project. Star Seed keeps the current seed in a Starred row that is saved with
+the project, so save the project after starring.
 
 The window groups the params and folds away the detail behind Human and Amateur, plus the drum map.
 The host still sees every param. Params with no effect right now are dimmed but still work, so you can set

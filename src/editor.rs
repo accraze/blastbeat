@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub const WIDTH: u32 = 400;
-pub const HEIGHT: u32 = 760;
+pub const HEIGHT: u32 = 790;
 const MIN_SIZE: Vec2 = Vec2::new(360.0, 320.0);
 const MARGIN: f32 = 8.0;
 /// Room each row needs beside its slider, for the name and the value
@@ -26,8 +26,7 @@ const IDLE_OPACITY: f32 = 0.4;
 const MAP_BARS: i64 = 32;
 /// The map scrolls in steps of this many bars, so the marker moves rather than the bars
 const MAP_PAGE: i64 = 8;
-/// shortcut: recent seeds live in the open editor only and are lost with the plugin instance,
-/// persist them with the project if that turns out to matter.
+/// Recent seeds only last while the plugin is loaded; starring is what saves one with the project.
 const HISTORY: usize = 6;
 /// Extra space before the first bar of each section block
 const BLOCK_GAP: f32 = 3.0;
@@ -69,6 +68,31 @@ pub fn create(params: Arc<BlastbeatParams>, bar: Arc<AtomicI64>) -> Option<Box<d
                             for &seed in history.iter() {
                                 let button = egui::Button::new(seed.to_string()).small();
                                 if ui.add_enabled(unlocked, button).clicked() {
+                                    pick = Some(seed);
+                                }
+                            }
+                        });
+                        let current = params.seed.value();
+                        let starred = params.starred.read().unwrap().clone();
+                        ui.horizontal_wrapped(|ui| {
+                            let label = if starred.contains(&current) {
+                                "Unstar seed"
+                            } else {
+                                "Star seed"
+                            };
+                            if ui.button(label).clicked() {
+                                toggle_star(&mut params.starred.write().unwrap(), current);
+                            }
+                            if !starred.is_empty() {
+                                ui.label("Starred:");
+                            }
+                            for &seed in &starred {
+                                let button = egui::Button::new(seed.to_string()).small();
+                                // The seed playing now is greyed out, which also shows where you are
+                                if ui
+                                    .add_enabled(unlocked && seed != current, button)
+                                    .clicked()
+                                {
                                     pick = Some(seed);
                                 }
                             }
@@ -196,6 +220,15 @@ fn remember(history: &mut Vec<i32>, from: i32, to: i32) {
     history.truncate(HISTORY);
 }
 
+fn toggle_star(starred: &mut Vec<i32>, seed: i32) {
+    match starred.iter().position(|&s| s == seed) {
+        Some(i) => {
+            starred.remove(i);
+        }
+        None => starred.push(seed),
+    }
+}
+
 /// One cell per bar, coloured by section, with a white line under double-bass bars.
 fn song_map(ui: &mut Ui, p: &Pattern, now: i64) {
     let section = section_at(now, p);
@@ -303,5 +336,16 @@ mod tests {
         }
         assert_eq!(h.len(), HISTORY);
         assert_eq!(h[0], 19);
+    }
+
+    #[test]
+    fn starring_a_seed_twice_removes_it_and_keeps_the_rest_in_order() {
+        let mut s = vec![];
+        toggle_star(&mut s, 5);
+        toggle_star(&mut s, 9);
+        toggle_star(&mut s, 2);
+        assert_eq!(s, [5, 9, 2]);
+        toggle_star(&mut s, 9);
+        assert_eq!(s, [5, 2]);
     }
 }

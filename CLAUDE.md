@@ -30,7 +30,7 @@ cargo clippy --release --lib
   where the last block ended; it must never affect which hits exist. Riff Follow kicks are the exception: `riff_note`
   queues them from incoming notes, including while stopped, so the note length can't depend on the transport.
 - `params.rs`: params and enums, and `pattern()` for building a `Pattern`. `editor.rs`: song map, Reroll with recent seeds,
-  and the grouped param panel, where a new param needs adding by hand. A plugin can only set its own params from the GUI, so Reroll has to live there. The map
+  starred seeds (saved as a `#[persist]` field, GUI only) and the grouped param panel, where a new param needs adding by hand. A plugin can only set its own params from the GUI, so Reroll has to live there. The map
   calls `section_at` itself; the audio thread only shares the current bar through an `AtomicI64`.
 - The audio thread must not allocate (`assert_process_allocs` is enabled).
 - `CLAP_ID`, `VST3_CLASS_ID` and param IDs must never change, or saved Bitwig projects lose the plugin or its settings.

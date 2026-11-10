@@ -4,7 +4,7 @@ use crate::editor;
 use crate::pattern::Pattern;
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 #[derive(Enum, PartialEq, Clone, Copy)]
 pub enum Blast {
@@ -56,6 +56,9 @@ pub enum Feet {
 pub struct BlastbeatParams {
     #[persist = "editor-size"]
     pub editor_state: Arc<EguiState>,
+    /// Only the GUI and state saving touch this, so the audio thread never waits on the lock
+    #[persist = "starred-seeds"]
+    pub starred: RwLock<Vec<i32>>,
 
     #[id = "intensity"]
     pub intensity: FloatParam,
@@ -167,6 +170,7 @@ impl Default for BlastbeatParams {
     fn default() -> Self {
         Self {
             editor_state: EguiState::from_size(editor::WIDTH, editor::HEIGHT),
+            starred: RwLock::new(Vec::new()),
             intensity: knob("Intensity", 1.0),
             blast: EnumParam::new("Blast", Blast::Traditional),
             division: EnumParam::new("Division", Division::Sixteenth),
@@ -241,6 +245,21 @@ impl Default for BlastbeatParams {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn starred_seeds_save_with_the_project_and_old_projects_have_none() {
+        let saved = BlastbeatParams::default();
+        *saved.starred.write().unwrap() = vec![7, 42];
+        let state = saved.serialize_fields();
+
+        let loaded = BlastbeatParams::default();
+        loaded.deserialize_fields(&state);
+        assert_eq!(*loaded.starred.read().unwrap(), [7, 42]);
+
+        let old = BlastbeatParams::default();
+        old.deserialize_fields(&Default::default());
+        assert!(old.starred.read().unwrap().is_empty());
+    }
 
     #[test]
     fn crash_every_text_round_trips() {
