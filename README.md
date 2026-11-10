@@ -50,7 +50,11 @@ them up first. Drag the bottom-right corner to resize the window.
 The song map at the top of the window shows 32 bars of sections, with the bar playing now outlined
 and a white line under double-bass bars. Hover a bar for its number and section. It's worked out from the params, so changing a chance or
 rerolling redraws the song ahead before you hear it. It shows sections only, not the Human or
-Amateur timing. All params can be automated, and any of
+Amateur timing.
+
+The step grid below it shows every drum for the bar playing now, with a box on the current step. Hits take
+the section's colour and fade when quieter, and Amateur's dropped hits are left out. Flams, timing and
+Riff Follow's kicks aren't drawn. All params can be automated, and any of
 them, such as Intensity, can be mapped to a MIDI CC with the host's controller mapping.
 
 ## Sections

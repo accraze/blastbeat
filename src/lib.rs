@@ -1,11 +1,8 @@
 //! A MIDI note effect that generates blast-beat drum patterns.
 
-use feel::Feel;
-use midi::{Clock, Scheduler};
-use mistakes::Mistakes;
+use midi::{Clock, Playhead, Scheduler};
 use nih_plug::prelude::*;
 use params::BlastbeatParams;
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 
 mod editor;
@@ -19,8 +16,7 @@ struct Blastbeat {
     params: Arc<BlastbeatParams>,
     scheduler: Scheduler,
     sample_rate: f32,
-    /// The bar playing now, for the editor's song map
-    bar: Arc<AtomicI64>,
+    playhead: Arc<Playhead>,
 }
 
 impl Default for Blastbeat {
@@ -29,7 +25,7 @@ impl Default for Blastbeat {
             params: Arc::new(BlastbeatParams::default()),
             scheduler: Scheduler::new(48000.0),
             sample_rate: 48000.0,
-            bar: Arc::new(AtomicI64::new(0)),
+            playhead: Arc::default(),
         }
     }
 }
@@ -54,7 +50,7 @@ impl Plugin for Blastbeat {
     }
 
     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
-        editor::create(self.params.clone(), self.bar.clone())
+        editor::create(self.params.clone(), self.playhead.clone())
     }
 
     fn initialize(
@@ -79,25 +75,11 @@ impl Plugin for Blastbeat {
     ) -> ProcessStatus {
         let clock = self.read_clock(context.transport());
         if let Some(c) = clock {
-            let bar = c.bar + ((c.pos - c.bar_start) / c.bar_len).floor() as i64;
-            self.bar.store(bar, Ordering::Relaxed);
+            self.playhead.set(&c);
         }
         let p = &self.params;
         let pattern = p.pattern();
-        let human = p.human.value();
-        let amateur = p.amateur.value();
-        let feel = Feel {
-            jitter: p.jitter.value() * human,
-            drift: p.drift.value() * human,
-            drift_rate: p.drift_rate.value(),
-            mistakes: Mistakes {
-                rush: p.rush.value() * amateur,
-                weak_foot: p.weak_foot.value() * amateur,
-                drops: p.drops.value() * amateur,
-                flams: p.flams.value() * amateur,
-                flat: p.flat.value() * amateur,
-            },
-        };
+        let feel = p.feel();
         // Same order as the voice indices in `pattern`
         let notes = [
             &p.note_kick,

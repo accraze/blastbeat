@@ -2,19 +2,25 @@
 //! plugin can only set its own params from the GUI, and Seed has to be a real param to save and
 //! automate. The map is drawn from the params alone, since the pattern is a pure function of them.
 
+use crate::midi::{steps_in_bar, Playhead};
+use crate::mistakes::{self, Mistakes};
 use crate::params::{BlastbeatParams, SEED_MAX};
-use crate::pattern::{double_bass_at, mix, section_at, Pattern, Section};
+use crate::pattern::{
+    double_bass_at, mix, section_at, step_hits, Pattern, Section, CHINA, CRASH, HAT, KICK,
+    KICK_LEFT, RIDE, SNARE,
+};
 use nih_plug::prelude::*;
-use nih_plug_egui::egui::{self, Color32, Rect, Sense, Stroke, StrokeKind, Ui, Vec2};
+use nih_plug_egui::egui::{
+    self, Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKind, Ui, Vec2,
+};
 use nih_plug_egui::resizable_window::ResizableWindow;
 use nih_plug_egui::widgets::ParamSlider;
 use nih_plug_egui::{create_egui_editor, egui::RichText};
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub const WIDTH: u32 = 400;
-pub const HEIGHT: u32 = 790;
+pub const HEIGHT: u32 = 860;
 const MIN_SIZE: Vec2 = Vec2::new(360.0, 320.0);
 const MARGIN: f32 = 8.0;
 /// Room each row needs beside its slider, for the name and the value
@@ -31,26 +37,43 @@ const HISTORY: usize = 6;
 /// Extra space before the first bar of each section block
 const BLOCK_GAP: f32 = 3.0;
 
+/// Top to bottom. The cymbal row shows whichever cymbal is selected.
+const GRID_ROWS: [(&str, &[usize]); 5] = [
+    ("Crash", &[CRASH]),
+    ("Cymbal", &[HAT, RIDE, CHINA]),
+    ("Snare", &[SNARE]),
+    ("R kick", &[KICK]),
+    ("L kick", &[KICK_LEFT]),
+];
+const GRID_LABEL_WIDTH: f32 = 46.0;
+const GRID_ROW_HEIGHT: f32 = 13.0;
+const BEAT_GAP: f32 = 2.0;
+const EMPTY_STEP: Color32 = Color32::from_gray(50);
+
 const BLAST: Color32 = Color32::from_rgb(150, 30, 30);
 const HALF_TIME: Color32 = Color32::from_rgb(200, 120, 40);
 const BREAKDOWN: Color32 = Color32::from_rgb(110, 60, 160);
 const FILL: Color32 = Color32::from_rgb(220, 200, 60);
 const DOUBLE_BASS: Color32 = Color32::from_gray(230);
 
-pub fn create(params: Arc<BlastbeatParams>, bar: Arc<AtomicI64>) -> Option<Box<dyn Editor>> {
+pub fn create(params: Arc<BlastbeatParams>, playhead: Arc<Playhead>) -> Option<Box<dyn Editor>> {
     create_egui_editor(
         params.editor_state.clone(),
         Vec::<i32>::new(),
         |_, _| {},
         move |ctx, setter, history| {
             // The map's marker follows the transport, which moves without any param change
-            ctx.request_repaint_after(Duration::from_millis(50));
+            ctx.request_repaint_after(Duration::from_millis(33));
             ResizableWindow::new("resize").min_size(MIN_SIZE).show(
                 ctx,
                 &params.editor_state,
                 |ui| {
                     egui::Frame::new().inner_margin(MARGIN).show(ui, |ui| {
-                        song_map(ui, &params.pattern(), bar.load(Ordering::Relaxed));
+                        let (bar, beats, bar_len) = playhead.get();
+                        let pattern = params.pattern();
+                        song_map(ui, &pattern, bar);
+                        ui.add_space(4.0);
+                        step_grid(ui, &pattern, &params.feel().mistakes, bar, beats, bar_len);
                         ui.add_space(6.0);
 
                         let unlocked = !params.lock.value();
@@ -291,6 +314,61 @@ fn song_map(ui: &mut Ui, p: &Pattern, now: i64) {
     });
 }
 
+/// One row per drum for the bar playing now, with a box around the current step. Hits take the
+/// section's colour, fainter when quieter.
+fn step_grid(ui: &mut Ui, p: &Pattern, m: &Mistakes, bar: i64, beats: f64, bar_len: f64) {
+    let spq = p.division.steps_per_quarter();
+    let steps = steps_in_bar(bar_len, spq);
+    let height = GRID_ROWS.len() as f32 * GRID_ROW_HEIGHT;
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::hover());
+    let painter = ui.painter();
+    let left = rect.left() + GRID_LABEL_WIDTH;
+    let width = (rect.width() - GRID_LABEL_WIDTH) / steps as f32;
+    let hit = color(section_at(bar, p));
+    for (row, (label, voices)) in GRID_ROWS.iter().enumerate() {
+        let top = rect.top() + row as f32 * GRID_ROW_HEIGHT;
+        painter.text(
+            egui::pos2(rect.left(), top + GRID_ROW_HEIGHT / 2.0),
+            Align2::LEFT_CENTER,
+            label,
+            FontId::proportional(11.0),
+            ui.visuals().text_color(),
+        );
+        for step in 0..steps {
+            let gap = if step % spq == 0 { BEAT_GAP } else { 0.0 };
+            let size = Vec2::new((width - 1.0 - gap).max(1.0), GRID_ROW_HEIGHT - 2.0);
+            let cell = Rect::from_min_size(egui::pos2(left + step as f32 * width + gap, top), size);
+            let v = heard(bar, step, voices, p, m);
+            let fill = if v > 0.0 {
+                hit.gamma_multiply(v)
+            } else {
+                EMPTY_STEP
+            };
+            painter.rect_filled(cell, 1.0, fill);
+        }
+    }
+    let step = ((beats * spq as f64) as i64).clamp(0, steps - 1);
+    let column = Rect::from_min_size(
+        egui::pos2(left + step as f32 * width, rect.top()),
+        Vec2::new(width - 1.0, height - 2.0),
+    );
+    painter.rect_stroke(
+        column,
+        1.0,
+        Stroke::new(1.0_f32, Color32::WHITE),
+        StrokeKind::Outside,
+    );
+}
+
+/// The loudest of these voices on this step, 0 if none play or a mistake drops them.
+fn heard(bar: i64, step: i64, voices: &[usize], p: &Pattern, m: &Mistakes) -> f32 {
+    let hits = step_hits(bar, step, p);
+    voices
+        .iter()
+        .filter(|&&v| !mistakes::dropped(p.seed, bar, step, v, m))
+        .fold(0.0, |loudest, &v| hits[v].max(loudest))
+}
+
 fn name(s: Section) -> &'static str {
     match s {
         Section::Blast => "Blast",
@@ -336,6 +414,33 @@ mod tests {
         }
         assert_eq!(h.len(), HISTORY);
         assert_eq!(h[0], 19);
+    }
+
+    #[test]
+    fn the_grid_shows_the_selected_cymbal_without_the_dropped_hits() {
+        let p = BlastbeatParams::default().pattern();
+        let m = Mistakes {
+            rush: 0.0,
+            weak_foot: 0.0,
+            drops: 1.0,
+            flams: 0.0,
+            flat: 0.0,
+        };
+        let cymbals = GRID_ROWS[1].1;
+        let mut dropped = 0;
+        for bar in 0..50 {
+            for step in 0..16 {
+                let shown = heard(bar, step, cymbals, &p, &m);
+                if mistakes::dropped(p.seed, bar, step, RIDE, &m) {
+                    assert_eq!(shown, 0.0);
+                    dropped += 1;
+                } else {
+                    assert_eq!(shown, step_hits(bar, step, &p)[RIDE]);
+                    assert!(shown > 0.0);
+                }
+            }
+        }
+        assert!(dropped > 0);
     }
 
     #[test]

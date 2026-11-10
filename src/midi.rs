@@ -10,6 +10,7 @@ use crate::feel::{self, Feel, MAX_OFFSET_MS};
 use crate::mistakes;
 use crate::pattern::{section_at, step_hits, Pattern, Section, KICK, VOICES};
 use nih_plug::prelude::*;
+use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
 
 /// Length of each note. The Drum Machine plays one-shots, so this only has to be short and non-zero.
 const GATE_MS: f64 = 30.0;
@@ -34,6 +35,59 @@ pub struct Clock {
     pub bar: i64,
     pub bar_start: f64,
     pub bar_len: f64,
+}
+
+impl Clock {
+    /// The bar the position is in, and how many quarter notes into it.
+    pub fn position(&self) -> (i64, f64) {
+        let bars = ((self.pos - self.bar_start) / self.bar_len).floor();
+        let beats = self.pos - self.bar_start - bars * self.bar_len;
+        (self.bar + bars as i64, beats)
+    }
+}
+
+/// Steps in a bar. Ignores float noise from an exact fit; an odd remainder gets one short last step.
+pub fn steps_in_bar(bar_len: f64, steps_per_quarter: i64) -> i64 {
+    (bar_len * steps_per_quarter as f64 - 1e-9).ceil() as i64
+}
+
+/// Where the transport is, for the editor to draw. Read separately, the values can be a block
+/// apart, which at worst draws one frame wrong.
+pub struct Playhead {
+    bar: AtomicI64,
+    beats: AtomicU32,
+    bar_len: AtomicU32,
+}
+
+impl Default for Playhead {
+    fn default() -> Self {
+        Self {
+            bar: AtomicI64::new(0),
+            beats: AtomicU32::new(0.0_f32.to_bits()),
+            bar_len: AtomicU32::new(4.0_f32.to_bits()),
+        }
+    }
+}
+
+impl Playhead {
+    pub fn set(&self, clock: &Clock) {
+        let (bar, beats) = clock.position();
+        self.bar.store(bar, Ordering::Relaxed);
+        self.beats
+            .store((beats as f32).to_bits(), Ordering::Relaxed);
+        self.bar_len
+            .store((clock.bar_len as f32).to_bits(), Ordering::Relaxed);
+    }
+
+    /// The bar, the quarter notes into it, and its length in quarter notes.
+    pub fn get(&self) -> (i64, f64, f64) {
+        let float = |a: &AtomicU32| f32::from_bits(a.load(Ordering::Relaxed)) as f64;
+        (
+            self.bar.load(Ordering::Relaxed),
+            float(&self.beats),
+            float(&self.bar_len),
+        )
+    }
 }
 
 #[derive(Clone, Copy, Default)]
@@ -209,8 +263,7 @@ fn scan(
     let margin = (MAX_OFFSET_MS + mistakes::MAX_EARLY_MS) * c.q_per_ms;
     let (lo, hi) = (start - margin, end + margin);
     let spq = p.division.steps_per_quarter();
-    // Ignores float noise from an exact fit; an odd remainder gets one short last step
-    let steps = (c.bar_len * spq as f64 - 1e-9).ceil() as i64;
+    let steps = steps_in_bar(c.bar_len, spq);
 
     let mut k = ((lo - c.bar_start) / c.bar_len).floor() as i64;
     loop {
@@ -502,6 +555,28 @@ mod tests {
             });
         }
         assert!(ons > 50);
+    }
+
+    #[test]
+    fn the_playhead_finds_the_bar_from_any_nearby_anchor() {
+        let at = clock_at(ONE_BAR * 5 + ONE_BAR / 4);
+        let (bar, beats) = at.position();
+        assert_eq!(bar, 5);
+        assert!((beats - 1.0).abs() < 0.01, "{beats}");
+        // A host can anchor on an earlier bar line
+        let earlier = Clock {
+            bar: at.bar - 2,
+            bar_start: at.bar_start - 2.0 * BAR,
+            ..at
+        };
+        assert_eq!(earlier.position().0, 5);
+        assert!((earlier.position().1 - beats).abs() < 1e-9);
+
+        let shared = Playhead::default();
+        shared.set(&at);
+        let (bar, shared_beats, len) = shared.get();
+        assert_eq!((bar, len), (5, BAR));
+        assert!((shared_beats - beats).abs() < 1e-4);
     }
 
     #[test]

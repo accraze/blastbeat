@@ -6,6 +6,11 @@ All notable changes to Blastbeat are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-10
+
+### Added
+- Step grid: every drum for the bar playing now, with a box on the current step.
+
 ## [0.8.0] - 2026-11-09
 
 ### Added
@@ -65,7 +70,8 @@ All notable changes to Blastbeat are documented here. The format follows
 - Feel: Jitter, Drift and Drift Rate, scaled by the Human macro.
 - Seed with a Reroll button and a lock, and an Intensity macro.
 
-[Unreleased]: https://github.com/accraze/blastbeat/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/accraze/blastbeat/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/accraze/blastbeat/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/accraze/blastbeat/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/accraze/blastbeat/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/accraze/blastbeat/compare/v0.5.0...v0.6.0

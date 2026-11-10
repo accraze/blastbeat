@@ -1,6 +1,8 @@
 //! Host-facing parameters. Param IDs are saved in projects, so they must never change.
 
 use crate::editor;
+use crate::feel::Feel;
+use crate::mistakes::Mistakes;
 use crate::pattern::Pattern;
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
@@ -151,6 +153,24 @@ impl BlastbeatParams {
             double_bass: self.double_bass.value(),
             feet: self.feet.value(),
             riff_follow: self.riff_follow.value(),
+        }
+    }
+
+    /// The timing and mistakes after the Human and Amateur macros.
+    pub fn feel(&self) -> Feel {
+        let human = self.human.value();
+        let amateur = self.amateur.value();
+        Feel {
+            jitter: self.jitter.value() * human,
+            drift: self.drift.value() * human,
+            drift_rate: self.drift_rate.value(),
+            mistakes: Mistakes {
+                rush: self.rush.value() * amateur,
+                weak_foot: self.weak_foot.value() * amateur,
+                drops: self.drops.value() * amateur,
+                flams: self.flams.value() * amateur,
+                flat: self.flat.value() * amateur,
+            },
         }
     }
 }
