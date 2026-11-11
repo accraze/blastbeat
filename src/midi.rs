@@ -337,6 +337,7 @@ mod tests {
             double_bass: 0.0,
             feet: Feet::Rolls,
             riff_follow: false,
+            locks: [0; crate::pattern::MAX_LOCKS],
         }
     }
 
@@ -761,6 +762,7 @@ mod tests {
         };
         let plain = Pattern {
             riff_follow: false,
+            locks: [0; crate::pattern::MAX_LOCKS],
             ..p
         };
         let empty: &[(u32, f32)] = &[];

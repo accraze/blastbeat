@@ -4,10 +4,11 @@
 
 use crate::midi::{steps_in_bar, Playhead};
 use crate::mistakes::{self, Mistakes};
-use crate::params::{BlastbeatParams, SEED_MAX};
+use crate::params::{BlastbeatParams, SectionLocks, SEED_MAX};
 use crate::pattern::{
-    double_bass_at, mix, section_at, step_hits, Pattern, Section, CHINA, CRASH, HAT, KICK,
-    KICK_LEFT, RIDE, SNARE,
+    block, block_section, double_bass_at, mix, section_at, step_hits, Pattern, Section, CHINA,
+    CRASH, HAT, KICK, KICK_LEFT, LOCK_BLAST, LOCK_BREAKDOWN, LOCK_HALF_TIME, MAX_LOCKS, RIDE,
+    SNARE,
 };
 use nih_plug::prelude::*;
 use nih_plug_egui::egui::{
@@ -36,6 +37,8 @@ const MAP_PAGE: i64 = 8;
 const HISTORY: usize = 6;
 /// Extra space before the first bar of each section block
 const BLOCK_GAP: f32 = 3.0;
+/// Room above the map's cells for the lock marker
+const LOCK_STRIP: f32 = 4.0;
 
 /// Top to bottom. The cymbal row shows whichever cymbal is selected.
 const GRID_ROWS: [(&str, &[usize]); 5] = [
@@ -71,7 +74,7 @@ pub fn create(params: Arc<BlastbeatParams>, playhead: Arc<Playhead>) -> Option<B
                     egui::Frame::new().inner_margin(MARGIN).show(ui, |ui| {
                         let (bar, beats, bar_len) = playhead.get();
                         let pattern = params.pattern();
-                        song_map(ui, &pattern, bar);
+                        song_map(ui, &pattern, &params.locks, bar);
                         ui.add_space(4.0);
                         step_grid(ui, &pattern, &params.feel().mistakes, bar, beats, bar_len);
                         ui.add_space(6.0);
@@ -142,7 +145,8 @@ fn param_panel(ui: &mut Ui, p: &BlastbeatParams, setter: &ParamSetter) {
     };
     let riff = p.riff_follow.value();
     let doubled = p.double_bass.value() > 0.0 && !riff;
-    let sections = p.half_time.value() + p.breakdown.value() + p.fill.value() > 0.0;
+    let sections = p.half_time.value() + p.breakdown.value() + p.fill.value() > 0.0
+        || p.locks.snapshot().iter().any(|&code| code != 0);
     let human = p.human.value() > 0.0;
     let amateur = p.amateur.value() > 0.0;
     egui::ScrollArea::vertical()
@@ -252,17 +256,20 @@ fn toggle_star(starred: &mut Vec<i32>, seed: i32) {
     }
 }
 
-/// One cell per bar, coloured by section, with a white line under double-bass bars.
-fn song_map(ui: &mut Ui, p: &Pattern, now: i64) {
+/// One cell per bar, coloured by section, with a white line under double-bass bars and a marker
+/// above locked blocks. Left-click pins or cycles a block's section, right-click unlocks it.
+fn song_map(ui: &mut Ui, p: &Pattern, locks: &SectionLocks, now: i64) {
     let section = section_at(now, p);
     ui.label(format!("Bar {}: {}", now + 1, name(section)));
 
+    let height = LOCK_STRIP + 24.0;
     let (rect, response) =
-        ui.allocate_exact_size(Vec2::new(ui.available_width(), 24.0), Sense::hover());
+        ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::click());
     let painter = ui.painter();
     let width = rect.width() / MAP_BARS as f32;
     let first = now.div_euclid(MAP_PAGE) * MAP_PAGE;
     let doubled = |bar| section_at(bar, p) != Section::Fill && double_bass_at(bar, p);
+    let locked = |bar| lock_at(block(bar, p), p) != 0;
     for i in 0..MAP_BARS {
         let bar = first + i;
         let gap = if bar.rem_euclid(p.section_bars) == 0 {
@@ -272,8 +279,15 @@ fn song_map(ui: &mut Ui, p: &Pattern, now: i64) {
         };
         let left = rect.left() + i as f32 * width + gap;
         let size = Vec2::new(width - 1.0 - gap, 18.0);
-        let cell = Rect::from_min_size(egui::pos2(left, rect.top()), size);
+        let cell = Rect::from_min_size(egui::pos2(left, rect.top() + LOCK_STRIP), size);
         painter.rect_filled(cell, 1.0, color(section_at(bar, p)));
+        if locked(bar) {
+            let marker = Rect::from_min_size(
+                egui::pos2(cell.left(), rect.top()),
+                Vec2::new(width - gap, 2.0),
+            );
+            painter.rect_filled(marker, 0.0, Color32::WHITE);
+        }
         if doubled(bar) {
             let line = Rect::from_min_size(
                 cell.left_bottom() + Vec2::new(0.0, 2.0),
@@ -290,12 +304,28 @@ fn song_map(ui: &mut Ui, p: &Pattern, now: i64) {
             );
         }
     }
+
+    let bar_at = |x: f32| first + (((x - rect.left()) / width) as i64).clamp(0, MAP_BARS - 1);
+    if let Some(pos) = response.interact_pointer_pos() {
+        let b = block(bar_at(pos.x), p);
+        if response.clicked() {
+            locks.lock(b, next_lock(lock_at(b, p), block_section(b, p)));
+        } else if response.secondary_clicked() {
+            locks.lock(b, 0);
+        }
+    }
     if let Some(pos) = response.hover_pos() {
-        let i = (((pos.x - rect.left()) / width) as i64).clamp(0, MAP_BARS - 1);
-        let bar = first + i;
+        let bar = bar_at(pos.x);
         let extra = if doubled(bar) { " + double bass" } else { "" };
+        let tip = if locked(bar) {
+            "locked. Click to change, right-click to unlock"
+        } else if (0..MAX_LOCKS as i64).contains(&block(bar, p)) {
+            "click to lock this block"
+        } else {
+            "too far in to lock"
+        };
         response.on_hover_text_at_pointer(format!(
-            "Bar {}: {}{extra}",
+            "Bar {}: {}{extra}\n{tip}",
             bar + 1,
             name(section_at(bar, p))
         ));
@@ -311,6 +341,7 @@ fn song_map(ui: &mut Ui, p: &Pattern, now: i64) {
             ui.label(RichText::new(format!("■ {}", name(s))).color(color(s)));
         }
         ui.label(RichText::new("▁ Double bass").color(DOUBLE_BASS));
+        ui.label("Top line: locked");
     });
 }
 
@@ -367,6 +398,26 @@ fn heard(bar: i64, step: i64, voices: &[usize], p: &Pattern, m: &Mistakes) -> f3
         .iter()
         .filter(|&&v| !mistakes::dropped(p.seed, bar, step, v, m))
         .fold(0.0, |loudest, &v| hits[v].max(loudest))
+}
+
+fn lock_at(b: i64, p: &Pattern) -> u8 {
+    usize::try_from(b)
+        .ok()
+        .and_then(|i| p.locks.get(i))
+        .copied()
+        .unwrap_or(0)
+}
+
+/// An unlocked block pins the section it's showing; a locked one moves on to the next section.
+fn next_lock(code: u8, showing: Section) -> u8 {
+    match (code, showing) {
+        (LOCK_BLAST, _) => LOCK_HALF_TIME,
+        (LOCK_HALF_TIME, _) => LOCK_BREAKDOWN,
+        (LOCK_BREAKDOWN, _) => LOCK_BLAST,
+        (_, Section::HalfTime) => LOCK_HALF_TIME,
+        (_, Section::Breakdown) => LOCK_BREAKDOWN,
+        _ => LOCK_BLAST,
+    }
 }
 
 fn name(s: Section) -> &'static str {
@@ -441,6 +492,21 @@ mod tests {
             }
         }
         assert!(dropped > 0);
+    }
+
+    #[test]
+    fn clicking_pins_what_shows_then_cycles_every_section() {
+        assert_eq!(next_lock(0, Section::Breakdown), LOCK_BREAKDOWN);
+        assert_eq!(next_lock(0, Section::Blast), LOCK_BLAST);
+        let mut code = next_lock(0, Section::HalfTime);
+        let mut seen = vec![code];
+        for _ in 0..2 {
+            code = next_lock(code, Section::HalfTime);
+            seen.push(code);
+        }
+        seen.sort();
+        assert_eq!(seen, [LOCK_BLAST, LOCK_HALF_TIME, LOCK_BREAKDOWN]);
+        assert_eq!(next_lock(code, Section::HalfTime), LOCK_HALF_TIME);
     }
 
     #[test]

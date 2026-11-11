@@ -3,9 +3,11 @@
 use crate::editor;
 use crate::feel::Feel;
 use crate::mistakes::Mistakes;
-use crate::pattern::Pattern;
+use crate::pattern::{Pattern, MAX_LOCKS};
+use nih_plug::params::persist::PersistentField;
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, RwLock};
 
 #[derive(Enum, PartialEq, Clone, Copy)]
@@ -61,6 +63,8 @@ pub struct BlastbeatParams {
     /// Only the GUI and state saving touch this, so the audio thread never waits on the lock
     #[persist = "starred-seeds"]
     pub starred: RwLock<Vec<i32>>,
+    #[persist = "section-locks"]
+    pub locks: SectionLocks,
 
     #[id = "intensity"]
     pub intensity: FloatParam,
@@ -136,6 +140,48 @@ pub struct BlastbeatParams {
 /// Highest seed. Params are normalized to f32, so a much larger range wouldn't round-trip exactly.
 pub const SEED_MAX: i32 = 99_999;
 
+/// Section locks set from the song map. Atomics, so the audio thread copies them without waiting.
+pub struct SectionLocks([AtomicU8; MAX_LOCKS]);
+
+impl Default for SectionLocks {
+    fn default() -> Self {
+        Self(std::array::from_fn(|_| AtomicU8::new(0)))
+    }
+}
+
+impl SectionLocks {
+    pub fn snapshot(&self) -> [u8; MAX_LOCKS] {
+        std::array::from_fn(|i| self.0[i].load(Ordering::Relaxed))
+    }
+
+    /// Ignores blocks past the end, which can't be locked.
+    pub fn lock(&self, block: i64, code: u8) {
+        if let Some(lock) = usize::try_from(block).ok().and_then(|i| self.0.get(i)) {
+            lock.store(code, Ordering::Relaxed);
+        }
+    }
+}
+
+/// Saved as a list without its trailing unlocked blocks, so most projects store a few bytes.
+impl<'a> PersistentField<'a, Vec<u8>> for SectionLocks {
+    fn set(&self, codes: Vec<u8>) {
+        for (i, lock) in self.0.iter().enumerate() {
+            lock.store(codes.get(i).copied().unwrap_or(0), Ordering::Relaxed);
+        }
+    }
+
+    fn map<F, R>(&self, f: F) -> R
+    where
+        F: Fn(&Vec<u8>) -> R,
+    {
+        let mut codes = self.snapshot().to_vec();
+        while codes.last() == Some(&0) {
+            codes.pop();
+        }
+        f(&codes)
+    }
+}
+
 impl BlastbeatParams {
     /// The current pattern settings, shared by the audio thread and the song map.
     pub fn pattern(&self) -> Pattern {
@@ -153,6 +199,7 @@ impl BlastbeatParams {
             double_bass: self.double_bass.value(),
             feet: self.feet.value(),
             riff_follow: self.riff_follow.value(),
+            locks: self.locks.snapshot(),
         }
     }
 
@@ -191,6 +238,7 @@ impl Default for BlastbeatParams {
         Self {
             editor_state: EguiState::from_size(editor::WIDTH, editor::HEIGHT),
             starred: RwLock::new(Vec::new()),
+            locks: SectionLocks::default(),
             intensity: knob("Intensity", 1.0),
             blast: EnumParam::new("Blast", Blast::Traditional),
             division: EnumParam::new("Division", Division::Sixteenth),
@@ -279,6 +327,26 @@ mod tests {
         let old = BlastbeatParams::default();
         old.deserialize_fields(&Default::default());
         assert!(old.starred.read().unwrap().is_empty());
+    }
+
+    #[test]
+    fn section_locks_save_with_the_project_and_old_projects_have_none() {
+        let saved = BlastbeatParams::default();
+        saved.locks.lock(0, 2);
+        saved.locks.lock(5, 3);
+        saved.locks.lock(-1, 1);
+        saved.locks.lock(MAX_LOCKS as i64, 1);
+        let state = saved.serialize_fields();
+        assert_eq!(state["section-locks"], "[2,0,0,0,0,3]");
+
+        let loaded = BlastbeatParams::default();
+        loaded.locks.lock(9, 1);
+        loaded.deserialize_fields(&state);
+        assert_eq!(loaded.locks.snapshot(), saved.locks.snapshot());
+
+        let old = BlastbeatParams::default();
+        old.deserialize_fields(&Default::default());
+        assert_eq!(old.locks.snapshot(), [0; MAX_LOCKS]);
     }
 
     #[test]

@@ -6,6 +6,12 @@ All notable changes to Blastbeat are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-10
+
+### Added
+- Section locks: click a block on the song map to pin its section, click again to cycle, right-click to
+  unlock. Locks are saved with the project; fills and double bass stay random.
+
 ## [0.9.0] - 2026-11-10
 
 ### Added
@@ -70,7 +76,8 @@ All notable changes to Blastbeat are documented here. The format follows
 - Feel: Jitter, Drift and Drift Rate, scaled by the Human macro.
 - Seed with a Reroll button and a lock, and an Intensity macro.
 
-[Unreleased]: https://github.com/accraze/blastbeat/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/accraze/blastbeat/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/accraze/blastbeat/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/accraze/blastbeat/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/accraze/blastbeat/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/accraze/blastbeat/compare/v0.6.0...v0.7.0

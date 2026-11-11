@@ -29,6 +29,14 @@ pub const STREAM_WEAK_TIMING: u64 = 11;
 pub const STREAM_WEAK_VELOCITY: u64 = 12;
 const STREAM_DOUBLE_BASS: u64 = 13;
 
+/// shortcut: only the first this-many blocks can be locked (512 bars of 4-bar blocks), raise it if
+/// songs get longer. Each process block copies them, so keep it small.
+pub const MAX_LOCKS: usize = 128;
+/// Lock codes. 0 leaves the block to chance; anything unknown, such as from a damaged project, too.
+pub const LOCK_BLAST: u8 = 1;
+pub const LOCK_HALF_TIME: u8 = 2;
+pub const LOCK_BREAKDOWN: u8 = 3;
+
 const DRUM_VELOCITY: f32 = 0.9;
 const CYMBAL_VELOCITY: f32 = 0.7;
 const ACCENT_VELOCITY: f32 = 1.0;
@@ -60,6 +68,8 @@ pub struct Pattern {
     pub feet: Feet,
     /// Incoming notes play the kick instead of the pattern
     pub riff_follow: bool,
+    /// A lock code per section block, from bar 0
+    pub locks: [u8; MAX_LOCKS],
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -85,17 +95,30 @@ pub fn random(seed: u64, bar: i64, step: i64, voice: usize, stream: u64) -> f64 
 }
 
 /// The block of bars this bar belongs to.
-fn block(bar: i64, p: &Pattern) -> i64 {
+pub fn block(bar: i64, p: &Pattern) -> i64 {
     bar.div_euclid(p.section_bars)
 }
 
 /// Each block draws its section on its own. A chain where each block depends on the last would
 /// have to be replayed from bar 0, so a Fill replacing the last bar is the only sequencing.
+/// Fills stay up to chance even in a locked block.
 pub fn section_at(bar: i64, p: &Pattern) -> Section {
     let b = block(bar, p);
     let last_bar = bar.rem_euclid(p.section_bars) == p.section_bars - 1;
     if last_bar && random(p.seed, b, 0, 1, STREAM_SECTION) < p.fill as f64 {
         return Section::Fill;
+    }
+    block_section(b, p)
+}
+
+/// A block's section, ignoring any fill on its last bar.
+pub fn block_section(b: i64, p: &Pattern) -> Section {
+    let lock = usize::try_from(b).ok().and_then(|i| p.locks.get(i));
+    match lock {
+        Some(&LOCK_BLAST) => return Section::Blast,
+        Some(&LOCK_HALF_TIME) => return Section::HalfTime,
+        Some(&LOCK_BREAKDOWN) => return Section::Breakdown,
+        _ => {}
     }
     let (half_time, breakdown) = (p.half_time as f64, p.breakdown as f64);
     // Chances adding up past 100% share it in proportion, leaving no plain blast
@@ -207,6 +230,7 @@ mod tests {
             double_bass: 0.0,
             feet: Feet::Rolls,
             riff_follow: false,
+            locks: [0; MAX_LOCKS],
         }
     }
 
@@ -465,6 +489,27 @@ mod tests {
         }
         assert!((on - 300).abs() < 60, "{on}");
         assert!((0..100).all(|b| !double_bass_at(b, &pat())));
+    }
+
+    #[test]
+    fn locked_blocks_beat_the_chances_but_keep_their_fills() {
+        let mut p = Pattern {
+            breakdown: 1.0,
+            fill: 1.0,
+            ..pat()
+        };
+        p.locks[2] = LOCK_HALF_TIME;
+        p.locks[3] = 99;
+        for bar in 0..20 {
+            let expected = match (bar % 4, bar / 4) {
+                (3, _) => Section::Fill,
+                (_, 2) => Section::HalfTime,
+                _ => Section::Breakdown,
+            };
+            assert_eq!(section_at(bar, &p), expected, "bar {bar}");
+        }
+        // Blocks before bar 0 can't be locked
+        assert_eq!(block_section(-1, &p), Section::Breakdown);
     }
 
     #[test]

@@ -48,7 +48,13 @@ The host still sees every param. Params with no effect right now are dimmed but 
 them up first. Drag the bottom-right corner to resize the window.
 
 The song map at the top of the window shows 32 bars of sections, with the bar playing now outlined
-and a white line under double-bass bars. Hover a bar for its number and section. It's worked out from the params, so changing a chance or
+and a white line under double-bass bars. Hover a bar for its number and section.
+
+Click a block on the map to lock it to the section it's showing, click again to cycle through Blast,
+Half-Time and Breakdown, and right-click to unlock it. Locked blocks have a white marker above them and
+ignore the Half-Time and Breakdown chances, but their last bar can still become a fill and double bass
+stays random. Locks are saved with the project (save after changing them) and belong to block numbers,
+so changing Section Bars moves them. The first 128 blocks can be locked. It's worked out from the params, so changing a chance or
 rerolling redraws the song ahead before you hear it. It shows sections only, not the Human or
 Amateur timing.
 
