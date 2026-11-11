@@ -6,6 +6,12 @@ All notable changes to Blastbeat are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-11-11
+
+### Fixed
+- Starring a seed or changing a section lock now marks the project as modified, so the host reminds you to
+  save instead of quitting without them.
+
 ## [0.11.0] - 2026-11-11
 
 ### Added
@@ -86,7 +92,8 @@ All notable changes to Blastbeat are documented here. The format follows
 - Feel: Jitter, Drift and Drift Rate, scaled by the Human macro.
 - Seed with a Reroll button and a lock, and an Intensity macro.
 
-[Unreleased]: https://github.com/accraze/blastbeat/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/accraze/blastbeat/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/accraze/blastbeat/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/accraze/blastbeat/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/accraze/blastbeat/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/accraze/blastbeat/compare/v0.8.0...v0.9.0

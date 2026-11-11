@@ -6,7 +6,7 @@
 
 use crate::midi::{steps_in_bar, Playhead};
 use crate::mistakes::{self, Mistakes};
-use crate::params::{BlastbeatParams, SectionLocks, SEED_MAX};
+use crate::params::{BlastbeatParams, SectionLocks, EDITS_MAX, SEED_MAX};
 use crate::pattern::{
     block, block_section, double_bass_at, mix, section_at, step_hits, Pattern, Section, CHINA,
     CRASH, HAT, KICK, KICK_LEFT, LOCK_BLAST, LOCK_BREAKDOWN, LOCK_HALF_TIME, MAX_LOCKS, RIDE,
@@ -144,7 +144,9 @@ fn faceplate(
     ui.scope_builder(UiBuilder::new().max_rect(display.shrink(8.0)), |ui| {
         let (bar, beats, bar_len) = playhead.get();
         let pattern = params.pattern();
-        song_map(ui, &pattern, &params.locks, bar, &mut view.map_start);
+        if song_map(ui, &pattern, &params.locks, bar, &mut view.map_start) {
+            mark_edited(setter, params);
+        }
         ui.add_space(4.0);
         step_grid(ui, &pattern, &params.feel().mistakes, bar, beats, bar_len);
     });
@@ -281,6 +283,7 @@ fn seed_rows(ui: &mut Ui, setter: &ParamSetter, params: &BlastbeatParams, view: 
         };
         if ui.button(label).clicked() {
             toggle_star(&mut params.starred.write().unwrap(), current);
+            mark_edited(setter, params);
         }
         ui.label("Seed");
         ui.add(ParamSlider::for_param(&params.seed, setter).with_width(90.0));
@@ -648,6 +651,14 @@ fn remember(history: &mut Vec<i32>, from: i32, to: i32) {
     history.truncate(HISTORY);
 }
 
+/// Nudges the hidden Edits param so the host marks the project as modified after a star or lock.
+fn mark_edited(setter: &ParamSetter, params: &BlastbeatParams) {
+    let next = (params.edits.value() + 1) % (EDITS_MAX + 1);
+    setter.begin_set_parameter(&params.edits);
+    setter.set_parameter(&params.edits, next);
+    setter.end_set_parameter(&params.edits);
+}
+
 fn toggle_star(starred: &mut Vec<i32>, seed: i32) {
     match starred.iter().position(|&s| s == seed) {
         Some(i) => {
@@ -659,7 +670,14 @@ fn toggle_star(starred: &mut Vec<i32>, seed: i32) {
 
 /// One cell per bar, coloured by section, with a white line under double-bass bars and a marker
 /// above locked blocks. Left-click pins or cycles a block's section, right-click unlocks it.
-fn song_map(ui: &mut Ui, p: &Pattern, locks: &SectionLocks, now: i64, start: &mut Option<i64>) {
+/// Returns whether a lock changed.
+fn song_map(
+    ui: &mut Ui,
+    p: &Pattern,
+    locks: &SectionLocks,
+    now: i64,
+    start: &mut Option<i64>,
+) -> bool {
     let first = start.unwrap_or(now.div_euclid(MAP_PAGE) * MAP_PAGE);
     ui.horizontal(|ui| {
         let section = name(section_at(now, p));
@@ -735,12 +753,15 @@ fn song_map(ui: &mut Ui, p: &Pattern, locks: &SectionLocks, now: i64, start: &mu
     }
 
     let bar_at = |x: f32| first + (((x - rect.left()) / width) as i64).clamp(0, MAP_BARS - 1);
+    let mut changed = false;
     if let Some(pos) = response.interact_pointer_pos() {
         let b = block(bar_at(pos.x), p);
         if response.clicked() {
             locks.lock(b, next_lock(lock_at(b, p), block_section(b, p)));
+            changed = true;
         } else if response.secondary_clicked() {
             locks.lock(b, 0);
+            changed = true;
         }
     }
     if let Some(pos) = response.hover_pos() {
@@ -772,6 +793,7 @@ fn song_map(ui: &mut Ui, p: &Pattern, locks: &SectionLocks, now: i64, start: &mu
         ui.label(RichText::new("▁ Double bass").color(DOUBLE_BASS));
         ui.label("Top line: locked");
     });
+    changed
 }
 
 /// One row per drum for the bar playing now, with a box around the current step. Hits take the

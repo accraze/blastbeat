@@ -137,10 +137,17 @@ pub struct BlastbeatParams {
     pub note_china: IntParam,
     #[id = "crashnote"]
     pub note_crash: IntParam,
+
+    /// Bumped by the editor on every star or lock change. Those live outside the params, so without a
+    /// param change the host wouldn't see the project as modified and could quit without saving them.
+    #[id = "edits"]
+    pub edits: IntParam,
 }
 
 /// Highest seed. Params are normalized to f32, so a much larger range wouldn't round-trip exactly.
 pub const SEED_MAX: i32 = 99_999;
+/// `edits` wraps back to 0 after this; only its changing matters.
+pub const EDITS_MAX: i32 = 1023;
 
 /// Section locks set from the song map. Atomics, so the audio thread copies them without waiting.
 pub struct SectionLocks([AtomicU8; MAX_LOCKS]);
@@ -308,6 +315,16 @@ impl Default for BlastbeatParams {
             note_ride: note("Ride Note", 51),
             note_china: note("China Note", 52),
             note_crash: note("Crash Note", 49),
+            edits: IntParam::new(
+                "Edits",
+                0,
+                IntRange::Linear {
+                    min: 0,
+                    max: EDITS_MAX,
+                },
+            )
+            .hide()
+            .non_automatable(),
         }
     }
 }
@@ -349,6 +366,12 @@ mod tests {
         let old = BlastbeatParams::default();
         old.deserialize_fields(&Default::default());
         assert_eq!(old.locks.snapshot(), [0; MAX_LOCKS]);
+    }
+
+    #[test]
+    fn the_edits_param_stays_out_of_sight_and_out_of_automation() {
+        let flags = BlastbeatParams::default().edits.flags();
+        assert!(flags.contains(ParamFlags::HIDDEN | ParamFlags::NON_AUTOMATABLE));
     }
 
     #[test]

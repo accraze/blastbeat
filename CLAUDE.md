@@ -32,7 +32,8 @@ cargo clippy --release --lib
 - `params.rs`: params and enums, and `pattern()` for building a `Pattern`. `editor.rs`: song map, Reroll with recent seeds,
   starred seeds (saved as a `#[persist]` field, GUI only) and the faceplate (`faceplate()`: knobs, switches, and folding detail sliders), where a new param needs
   placing by hand. `knob()` and `screw()` come from `../vibe`. The window is fixed-size on
-  purpose: the user found scaled text hard to read. A plugin can only set its own params from the GUI, so Reroll has to live there. Map clicks set `SectionLocks`
+  purpose: the user found scaled text hard to read. Star and lock changes call `mark_edited()`, which bumps
+  the hidden `edits` param, because nih-plug can't mark plugin state dirty any other way. A plugin can only set its own params from the GUI, so Reroll has to live there. Map clicks set `SectionLocks`
   (atomics, saved with the project), which `pattern()` copies into `Pattern::locks`. The map calls `section_at` itself; the audio thread only shares `Playhead` atomics.
 - The audio thread must not allocate (`assert_process_allocs` is enabled).
 - `CLAP_ID`, `VST3_CLASS_ID` and param IDs must never change, or saved Bitwig projects lose the plugin or its settings.

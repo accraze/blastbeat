@@ -37,11 +37,14 @@ looping, scrubbing and starting mid-song all produce the same hits.
 | Flat Velocity | `flatvel` | 0–100%                      | 50%         | Pulls every hit toward one level, with up to 6% spiking to full velocity |
 | Seed        | `seed`      | 0–99999                     | 1           | Selects the random pattern. Saved with the project and automatable |
 | Lock Seed   | `lock`      | On, Off                     | Off         | Disables the Reroll button. Seed can still be set by hand or automation |
+| Edits       | `edits`     | 0–1023                      | 0           | Hidden and not automatable. The window bumps it on each star or lock change so the host knows the project changed |
 
 The Reroll button in the plugin window picks a new Seed, and the seeds you leave appear next to it
 as Recent buttons, so you can go back to a good one. Recent seeds last while the plugin is loaded
 and aren't saved with the project. Star Seed keeps the current seed in a Starred row that is saved with
-the project, so save the project after starring.
+the project. Starring, like locking a section, marks the project as modified, so the host reminds you
+to save. Each one is also a step in the host's undo history, though undoing it doesn't remove the star
+or lock.
 
 The window is a metal faceplate. The everyday params are knobs and switches: drag a knob or use the mouse
 wheel to turn it (Shift for fine), double-click to reset it, and click a switch for its next option
@@ -55,7 +58,7 @@ and a white line under double-bass bars. Hover a bar for its number and section.
 Click a block on the map to lock it to the section it's showing, click again to cycle through Blast,
 Half-Time and Breakdown, and right-click to unlock it. Locked blocks have a white marker above them and
 ignore the Half-Time and Breakdown chances, but their last bar can still become a fill and double bass
-stays random. Locks are saved with the project (save after changing them) and belong to block numbers,
+stays random. Locks are saved with the project and belong to block numbers,
 so changing Section Bars moves them. The first 128 blocks can be locked.
 
 The map follows the playhead. Use `<` and `>` to look 8 bars back or ahead, for example to lock a block
