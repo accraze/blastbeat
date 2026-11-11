@@ -6,6 +6,8 @@ A MIDI note effect (CLAP / VST3) that generates blast-beat drum patterns from th
 built with [nih-plug](https://github.com/robbert-vdh/nih-plug). Put it before Bitwig's Drum Machine
 and press play. It has no audio I/O. Incoming notes are ignored unless Riff Follow is on.
 
+![Blastbeat's faceplate: the song map and step grid, seed controls, and knobs and switches](docs/screenshot.png)
+
 The pattern is a pure function of bar, step, seed and params, with no running random state, so
 looping, scrubbing and starting mid-song all produce the same hits.
 
