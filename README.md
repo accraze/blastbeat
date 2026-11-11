@@ -43,9 +43,11 @@ as Recent buttons, so you can go back to a good one. Recent seeds last while the
 and aren't saved with the project. Star Seed keeps the current seed in a Starred row that is saved with
 the project, so save the project after starring.
 
-The window groups the params and folds away the detail behind Human and Amateur, plus the drum map.
-The host still sees every param. Params with no effect right now are dimmed but still work, so you can set
-them up first. Drag the bottom-right corner to resize the window.
+The window is a metal faceplate. The everyday params are knobs and switches: drag a knob or use the mouse
+wheel to turn it (Shift for fine), double-click to reset it, and click a switch for its next option
+(right-click for the previous one). The details behind Human and Amateur, and the drum map, fold away in
+the panel at the bottom. The host still sees every param. Controls with no effect right now are dimmed but
+still work, so you can set them up first. The window has a fixed size.
 
 The song map at the top of the window shows 32 bars of sections, with the bar playing now outlined
 and a white line under double-bass bars. Hover a bar for its number and section.
@@ -54,7 +56,10 @@ Click a block on the map to lock it to the section it's showing, click again to 
 Half-Time and Breakdown, and right-click to unlock it. Locked blocks have a white marker above them and
 ignore the Half-Time and Breakdown chances, but their last bar can still become a fill and double bass
 stays random. Locks are saved with the project (save after changing them) and belong to block numbers,
-so changing Section Bars moves them. The first 128 blocks can be locked. It's worked out from the params, so changing a chance or
+so changing Section Bars moves them. The first 128 blocks can be locked.
+
+The map follows the playhead. Use `<` and `>` to look 8 bars back or ahead, for example to lock a block
+later in the song, and Now to follow the playhead again. It's worked out from the params, so changing a chance or
 rerolling redraws the song ahead before you hear it. It shows sections only, not the Human or
 Amateur timing.
 

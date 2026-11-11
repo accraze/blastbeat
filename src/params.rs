@@ -58,7 +58,9 @@ pub enum Feet {
 
 #[derive(Params)]
 pub struct BlastbeatParams {
-    #[persist = "editor-size"]
+    // Renamed from "editor-size" so projects saved with the resizable 0.7.0-0.10.0 window open at
+    // the faceplate's fixed size
+    #[persist = "editor-size-2"]
     pub editor_state: Arc<EguiState>,
     /// Only the GUI and state saving touch this, so the audio thread never waits on the lock
     #[persist = "starred-seeds"]
